@@ -1,0 +1,182 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Orbis</title>
+    
+    <!-- FAVICON (SVG) -->
+    <link rel="icon" type="image/svg+xml" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none"><circle cx="50" cy="50" r="22" fill="%23ea580c"/><g stroke="%23ea580c" stroke-width="2" opacity="0.8"><ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(0 50 50)"/><ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(45 50 50)"/><ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(90 50 50)"/><ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(135 50 50)"/></g></svg>' />
+
+    <!-- OPEN GRAPH / SOCIAL SHARE TAGS -->
+    <meta property="og:title" content="Orbis - Learn Concepts in 60 Seconds" />
+    <meta property="og:description" content="Turn any syllabus into a cinematic, 60-second video course. The smart learning companion for students." />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://onobris.com" />
+    
+    <!-- SOCIAL PREVIEW IMAGE -->
+    <meta property="og:image" content="https://ibb.co/m5hFYd02" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+
+    <!-- TWITTER CARDS -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Orbis | Effortless Mastery" />
+    <meta name="twitter:description" content="Architect your coursework into beautiful, bite-sized video reels. AI-powered learning." />
+    <meta name="twitter:image" content="https://ibb.co/m5hFYd02" />
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              orange: {
+                50: '#fff7ed',
+                100: '#ffedd5',
+                200: '#fed7aa',
+                300: '#fdba74',
+                400: '#fb923c',
+                500: '#f97316',
+                600: '#ea580c', // Primary Brand (Terracotta)
+                700: '#c2410c',
+                800: '#9a3412',
+                900: '#7c2d12',
+              },
+              stone: {
+                50: '#fafaf9',
+                100: '#f5f5f4',
+                200: '#e7e5e4',
+                300: '#d6d3d1',
+                400: '#a8a29e',
+                500: '#78716c',
+                600: '#57534e',
+                700: '#44403c',
+                800: '#292524',
+                900: '#1c1917',
+                950: '#0c0a09',
+              }
+            },
+            fontFamily: {
+              sans: ['Open Sans', 'sans-serif'],
+              display: ['Google Sans', 'Open Sans', 'sans-serif'],
+              hand: ['Patrick Hand', 'cursive'],
+            }
+          }
+        }
+      }
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;500;600;700&family=Google+Sans:wght@400;500;700&family=Patrick+Hand&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" />
+    <style>
+      :root {
+        /* Light Mode Defaults - Terracotta & Stone */
+        --orbis-primary: #ea580c; /* Orange 600 */
+        --orbis-primary-light: #fff7ed; /* Orange 50 */
+        --orbis-bg: #fafaf9; /* Stone 50 */
+        --orbis-surface: #FFFFFF;
+        --orbis-text: #1c1917; /* Stone 900 */
+        --orbis-text-secondary: #78716c; /* Stone 500 */
+        --orbis-border: #e7e5e4; /* Stone 200 */
+      }
+
+      html.dark {
+        /* Dark Mode Overrides */
+        --orbis-primary: #fb923c; /* Orange 400 */
+        --orbis-primary-light: #431407; /* Orange 950 approx */
+        --orbis-bg: #0c0a09; /* Stone 950 */
+        --orbis-surface: #1c1917; /* Stone 900 */
+        --orbis-text: #fafaf9; /* Stone 50 */
+        --orbis-text-secondary: #a8a29e; /* Stone 400 */
+        --orbis-border: #292524; /* Stone 800 */
+      }
+      
+      body { 
+        font-family: 'Open Sans', sans-serif; 
+        background-color: var(--orbis-bg); 
+        color: var(--orbis-text); 
+        overflow: hidden; 
+        -webkit-font-smoothing: antialiased;
+        transition: background-color 0.5s ease, color 0.5s ease;
+      }
+      
+      h1, h2, h3, .brand-font {
+        font-family: 'Google Sans', 'Open Sans', sans-serif;
+      }
+      
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+      
+      .snap-y-mandatory { scroll-snap-type: y mandatory; }
+      .snap-center { scroll-snap-align: center; }
+
+      .orbis-card {
+        background: var(--orbis-surface);
+        border: 1px solid var(--orbis-border);
+        border-radius: 2px; /* More minimal/architectural */
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+      }
+      
+      .orbis-card:hover {
+        box-shadow: 0 15px 30px -5px rgba(0, 0, 0, 0.05);
+        transform: translateY(-2px);
+        border-color: var(--orbis-primary);
+      }
+      
+      .orbis-input {
+        transition: all 0.2s;
+        border: 1px solid var(--orbis-border);
+        background-color: var(--orbis-surface);
+        color: var(--orbis-text);
+        border-radius: 4px; /* Minimal */
+      }
+      .orbis-input:focus {
+        border-color: var(--orbis-primary);
+        box-shadow: 0 0 0 1px var(--orbis-primary);
+        outline: none;
+      }
+
+      .shimmer {
+        background: linear-gradient(to right, var(--orbis-border) 0%, var(--orbis-surface) 20%, var(--orbis-border) 40%, var(--orbis-border) 100%);
+        background-size: 1000px 100%;
+        animation: shimmer 2s infinite linear;
+      }
+      
+      @keyframes shimmer {
+        0% { background-position: -1000px 0; }
+        100% { background-position: 1000px 0; }
+      }
+
+      .fade-in { animation: fadeIn 0.5s ease-out forwards; }
+      @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+      /* Breathing Animation for Landing */
+      .breathe { animation: breathe 4s ease-in-out infinite; }
+      @keyframes breathe {
+        0%, 100% { transform: scale(1); opacity: 0.8; }
+        50% { transform: scale(1.05); opacity: 1; }
+      }
+    </style>
+  <script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "firebase/app": "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js",
+    "firebase/auth": "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js",
+    "firebase/firestore": "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js",
+    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+  }
+}
+</script>
+</head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
