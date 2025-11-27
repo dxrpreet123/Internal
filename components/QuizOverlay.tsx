@@ -1,19 +1,23 @@
+
 import React, { useState } from 'react';
 import { Quiz } from '../types';
 
 interface QuizOverlayProps {
   quiz: Quiz;
   onClose: () => void;
+  onResult?: (correct: boolean) => void;
 }
 
-const QuizOverlay: React.FC<QuizOverlayProps> = ({ quiz, onClose }) => {
+const QuizOverlay: React.FC<QuizOverlayProps> = ({ quiz, onClose, onResult }) => {
   const [selected, setSelected] = useState<number | null>(null);
   const [isCorrect, setIsCorrect] = useState<boolean | null>(null);
 
   const handleOptionClick = (index: number) => {
     if (selected !== null) return; // Prevent multi-click
     setSelected(index);
-    setIsCorrect(index === quiz.correctIndex);
+    const correct = index === quiz.correctIndex;
+    setIsCorrect(correct);
+    if (onResult) onResult(correct);
   };
 
   return (

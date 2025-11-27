@@ -1,44 +1,66 @@
 
-import React, { useState, useEffect, useRef } from 'react';
-import LandingView from './components/LandingView';
-import IngestView from './components/IngestView';
-import AnalysisView from './components/AnalysisView';
-import ReelFeed from './components/ReelFeed';
-import Dashboard from './components/Dashboard';
-import AuthView from './components/AuthView';
-import { ReelData, AppState, CourseRequest, Course, User, SyllabusAnalysis, ConsultationAnswers, EducationLevel, UserTier } from './types';
-import { generateCourseOutline, generateAudio, generateVeoVideo, generateImagenImage, checkApiKey, promptForKey, analyzeSyllabus } from './services/geminiService';
-import { getAllCourses, saveCourse as saveLocalCourse, deleteCourse as deleteLocalCourse, getCourseById } from './services/storage';
-import { CloudService, generateSyllabusHash } from './services/cloud';
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { ReelData, AppState, CourseRequest, Course, User, SyllabusAnalysis, ConsultationAnswers, EducationLevel, Semester, SemesterUnit, SemesterTopic } from './types';
+import { generateCourseOutline, generateAudio, triggerVeoGeneration, pollVeoOperation, generateImagenImage, checkApiKey, promptForKey, analyzeSyllabus, generateRemedialCurriculum, structureSemester } from './services/geminiService';
+import { getAllCourses, saveCourse as saveLocalCourse, deleteCourse as deleteLocalCourse, saveSemester as saveLocalSemester, getAllSemesters, deleteSemester as deleteLocalSemester } from './services/storage';
+import { CloudService } from './services/cloud';
+
+// Lazy Load Components for Code Splitting
+const LandingView = lazy(() => import('./components/LandingView'));
+const IngestView = lazy(() => import('./components/IngestView'));
+const AnalysisView = lazy(() => import('./components/AnalysisView'));
+const ReelFeed = lazy(() => import('./components/ReelFeed'));
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const AuthView = lazy(() => import('./components/AuthView'));
+const SemesterView = lazy(() => import('./components/SemesterView'));
+const PricingView = lazy(() => import('./components/PricingView'));
+const ContactView = lazy(() => import('./components/ContactView'));
+const ClassroomView = lazy(() => import('./components/ClassroomView'));
+const ExamView = lazy(() => import('./components/ExamView'));
+const SitemapView = lazy(() => import('./components/SitemapView'));
+
+const LoadingFallback = () => (
+  <div className="h-[100dvh] w-full bg-[#fafaf9] dark:bg-[#0c0a09] flex items-center justify-center">
+    <div className="w-8 h-8 border-2 border-stone-200 dark:border-stone-800 border-t-orange-600 rounded-full animate-spin"></div>
+  </div>
+);
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.LANDING);
   const [courses, setCourses] = useState<Course[]>([]);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [activeCourse, setActiveCourse] = useState<Course | null>(null);
+  const [activeSemesterId, setActiveSemesterId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
   
   const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [authLoading, setAuthLoading] = useState(true);
   const processingRef = useRef(false);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
-  // Temporary state for the Ingest -> Analysis -> Generation flow
   const [pendingRequest, setPendingRequest] = useState<CourseRequest | null>(null);
   const [analysisResult, setAnalysisResult] = useState<SyllabusAnalysis | null>(null);
-  
-  // Share Import State
   const [sharedCourseToImport, setSharedCourseToImport] = useState<Course | null>(null);
-  
-  // Queue for Stage 2 (Video Upgrade)
   const [videoQueue, setVideoQueue] = useState<Array<{courseId: string, reelId: string, prompt: string, notifyEmail: boolean, totalReels: number}>>([]);
+  const [startReelIndex, setStartReelIndex] = useState(0);
 
-  // Auth Persistence & Theme
+  const activeSemester = semesters.find(s => s.id === activeSemesterId) || null;
+
+  const showToast = (msg: string) => {
+      setToastMsg(msg);
+      setTimeout(() => setToastMsg(null), 4000);
+  };
+
   useEffect(() => {
-    // Theme
+    const timer = setTimeout(() => setAuthLoading(false), 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
     const isDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
     setTheme(isDark ? 'dark' : 'light');
     if (isDark) document.documentElement.classList.add('dark');
-
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = (e: MediaQueryListEvent) => {
         const newTheme = e.matches ? 'dark' : 'light';
@@ -47,82 +69,29 @@ const App: React.FC = () => {
         else document.documentElement.classList.remove('dark');
     };
     mediaQuery.addEventListener('change', handleChange);
-
-    // Check for Share Link Param
+    
     const checkShareLink = async () => {
         const urlParams = new URLSearchParams(window.location.search);
-        const shareHash = urlParams.get('share');
-        if (shareHash) {
-            setLoadingStatus("Fetching Shared Course...");
-            const sharedCourse = await CloudService.getPublicCourseByHash(shareHash);
-            if (sharedCourse) {
-                setSharedCourseToImport(sharedCourse);
-            }
-            // Clean URL
-            window.history.replaceState({}, document.title, window.location.pathname);
-            setLoadingStatus("");
+        const sharedHash = urlParams.get('c');
+        if (sharedHash) {
+             const publicCourse = await CloudService.findPublicCourseMatch(sharedHash);
+             if (publicCourse) setSharedCourseToImport(publicCourse);
         }
     };
     checkShareLink();
 
-    // Auth Subscription
-    const unsubscribe = CloudService.subscribeToAuthChanges(async (restoredUser) => {
-        if (restoredUser) {
-            setUser(restoredUser);
-            setAppState(AppState.DASHBOARD);
-        } else {
-            // Check for persistent guest mode
-            const isGuest = localStorage.getItem('orbis_guest_mode') === 'true';
-            if (isGuest) {
-                 setUser({ id: 'guest', name: 'Guest User', email: '', avatarUrl: '', tier: 'FREE' });
-                 setAppState(AppState.DASHBOARD);
-            }
-        }
+    CloudService.subscribeToAuthChanges((u) => {
+        setUser(u);
         setAuthLoading(false);
+        if (u) {
+            CloudService.getUserCourses(u.id).then(c => { if(c.length > 0) setCourses(c); });
+            CloudService.getUserSemesters(u.id).then(s => { if(s.length > 0) setSemesters(s); });
+        } else {
+             getAllCourses().then(c => setCourses(c));
+             getAllSemesters().then(s => setSemesters(s));
+        }
     });
-
-    return () => {
-        mediaQuery.removeEventListener('change', handleChange);
-        unsubscribe();
-    }
   }, []);
-
-  // RESUME INTERRUPTED GENERATIONS ON LOAD
-  useEffect(() => {
-      if (!authLoading && courses.length > 0) {
-          // 1. Resume Phase 1 (Generating)
-          const stuckCourses = courses.filter(c => c.status === 'GENERATING');
-          stuckCourses.forEach(course => {
-              console.log("Resuming generation for:", course.title);
-              // Restart the queue processor. It handles idempotency (skips already ready reels).
-              processAssetQueueBackground(course, false); 
-          });
-
-          // 2. Resume Phase 2 (Video Queue reconstruction)
-          // Since videoQueue is in-memory, we need to find reels that are images but intended for video (if Pro)
-          if (user?.tier === 'PRO') {
-              const pendingVideos: typeof videoQueue = [];
-              courses.forEach(course => {
-                  if (course.completedVideos !== undefined && course.completedVideos < course.totalReels) {
-                      course.reels.forEach(reel => {
-                          if (reel.type === 'CONCEPT' && reel.imageUri && !reel.videoUri) {
-                                pendingVideos.push({
-                                    courseId: course.id,
-                                    reelId: reel.id,
-                                    prompt: reel.visualPrompt,
-                                    notifyEmail: false,
-                                    totalReels: course.totalReels
-                                });
-                          }
-                      });
-                  }
-              });
-              if (pendingVideos.length > 0) {
-                  setVideoQueue(prev => [...prev, ...pendingVideos]);
-              }
-          }
-      }
-  }, [authLoading, courses.length, user?.tier]);
 
   const handleToggleTheme = () => {
       setTheme(prev => {
@@ -133,545 +102,599 @@ const App: React.FC = () => {
       });
   };
 
-  useEffect(() => {
-      if (appState !== AppState.LANDING && appState !== AppState.AUTH && !authLoading) {
-          loadCourses();
-      }
-  }, [appState, user, authLoading]);
-
-  const loadCourses = async () => {
-      try {
-        if (user && user.id !== 'guest') {
-            // Load from Cloud if logged in
-            const cloudCourses = await CloudService.getUserCourses(user.id);
-            setCourses(cloudCourses);
-        } else {
-            // Load from Local Device if guest
-            const list = await getAllCourses();
-            setCourses(list);
-        }
-      } catch (e) {
-        console.error("Failed to load courses", e);
-      }
-  };
-
-  const persistCourse = async (course: Course) => {
-      // 1. Always save to local IndexDB for offline/performance
-      await saveLocalCourse(course);
-
-      // 2. If logged in, sync to Cloud
-      if (user && user.id !== 'guest') {
-          await CloudService.saveUserCourse(user.id, course);
-      }
-  };
-
-  const handleEnterApp = () => {
-      if (!authLoading) {
-        // If already logged in (restored), go to dashboard, else auth
-        if (user) setAppState(AppState.DASHBOARD);
-        else setAppState(AppState.AUTH);
-      }
-  };
-
-  const handleLogin = async () => {
-      try {
-          const loggedUser = await CloudService.signInWithGoogle();
-          setUser(loggedUser);
-          localStorage.removeItem('orbis_guest_mode');
-          setAppState(AppState.DASHBOARD);
-      } catch (e) {
-          console.error("Login failed", e);
+  const handleLogin = () => {
+      setAppState(AppState.DASHBOARD);
+      if (sharedCourseToImport) {
+          // Import logic if needed
       }
   };
 
   const handleGuest = () => {
-      // Guest is strictly FREE tier
-      setUser({ id: 'guest', name: 'Guest User', email: '', avatarUrl: '', tier: 'FREE' });
-      localStorage.setItem('orbis_guest_mode', 'true');
+      setUser({ id: 'guest', name: 'Guest', email: '', avatarUrl: '', tier: 'FREE' });
       setAppState(AppState.DASHBOARD);
   };
 
-  const handleSignOut = () => {
-      CloudService.signOut();
-      localStorage.removeItem('orbis_guest_mode');
-      setUser(null);
-      setActiveCourse(null);
-      setAppState(AppState.LANDING);
+  const handleStartAnalysis = async (data: CourseRequest) => {
+      try {
+          const hasKey = await checkApiKey();
+          if (!hasKey) {
+             await promptForKey();
+             const nowHasKey = await checkApiKey();
+             if (!nowHasKey) { alert("API Key Required"); return; }
+          }
+      } catch (e) { console.error(e); }
+
+      setLoadingStatus("Analyzing Syllabus Architecture...");
+      setPendingRequest(data);
+      
+      try {
+          const analysis = await analyzeSyllabus(data.syllabus);
+          setAnalysisResult(analysis);
+          
+          if (data.isSemesterInit) {
+               setLoadingStatus("Architecting Semester Plan...");
+               const subjects = await structureSemester(data.syllabus);
+               const newSemester: Semester = {
+                   id: `sem-${Date.now()}`,
+                   ownerId: user?.id || 'local',
+                   title: data.semesterName || 'My Semester',
+                   level: data.level,
+                   createdAt: Date.now(),
+                   subjects: subjects
+               };
+               
+               if (user && user.id !== 'guest') await CloudService.saveUserSemester(user.id, newSemester);
+               else await saveLocalSemester(newSemester);
+               
+               setSemesters(prev => [newSemester, ...prev]);
+               setLoadingStatus('');
+               setActiveSemesterId(newSemester.id);
+               setAppState(AppState.SEMESTER_VIEW);
+          } else {
+               setAppState(AppState.ANALYSIS);
+          }
+      } catch (e) {
+          console.error(e);
+          setLoadingStatus('');
+          alert("Failed to analyze syllabus. Try again.");
+      }
+      setLoadingStatus('');
   };
 
-  const handleImportSharedCourse = async () => {
-      if (!sharedCourseToImport) return;
+  const handleConfirmCourse = async (level: EducationLevel, includePYQ: boolean, answers: ConsultationAnswers, selectedTopics: string[]) => {
+      if (!pendingRequest) return;
       
-      const newCourse: Course = {
-          ...sharedCourseToImport,
-          id: `course-${Date.now()}-imported`,
-          ownerId: user ? user.id : 'guest',
-          lastAccessedAt: Date.now(),
-          isPublic: false
+      setAppState(AppState.INGEST); 
+      setLoadingStatus("Architecting Course Modules...");
+
+      const request = { 
+          ...pendingRequest, 
+          level, 
+          includePYQ, 
+          consultationAnswers: answers,
+          selectedTopics 
       };
 
-      await persistCourse(newCourse);
-      await loadCourses();
-      setSharedCourseToImport(null);
-      
-      if (!user) {
-          handleGuest(); // Auto-login as guest if not logged in
-      } else {
-          setAppState(AppState.DASHBOARD);
-      }
-  };
+      try {
+           const syllabusToUse = selectedTopics.length > 0 
+                ? `Focus ONLY on these topics from the syllabus: ${selectedTopics.join(', ')}. \n\n Context: ${pendingRequest.syllabus}`
+                : pendingRequest.syllabus;
 
-  // --- STAGE 2: BACKGROUND VIDEO PROCESSOR ---
-  // Processes 1 video every 10 seconds. Triggers email on completion.
-  useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+           const reels = await generateCourseOutline(
+               syllabusToUse, 
+               request.urls, 
+               request.level, 
+               request.includePYQ,
+               request.language,
+               request.pyqContent,
+               request.consultationAnswers,
+               request.maxReels,
+               analysisResult?.domain,
+               request.mode,
+               request.cramConfig
+           );
 
-    const processNextVideo = async () => {
-        if (videoQueue.length === 0) return;
-
-        const task = videoQueue[0];
-        
-        try {
-            // Attempt to generate video
-            const videoUri = await generateVeoVideo(task.prompt);
-            
-            if (videoUri) {
-                // Fetch latest state (Local first for speed)
-                const course = await getCourseById(task.courseId) || courses.find(c => c.id === task.courseId);
-                
-                if (course) {
-                    const updatedReels = course.reels.map(r => 
-                        r.id === task.reelId ? { ...r, videoUri, imageUri: undefined } : r
-                    );
-                    const completedVids = (course.completedVideos || 0) + 1;
-                    const updatedCourse = { 
-                        ...course, 
-                        reels: updatedReels, 
-                        completedVideos: completedVids,
-                        processingStatus: completedVids === task.totalReels ? undefined : `Phase 2: Synthesizing Video ${completedVids}/${task.totalReels}`
-                    };
-                    
-                    await persistCourse(updatedCourse);
-                    
-                    if (activeCourse?.id === task.courseId) setActiveCourse(updatedCourse);
-                    setCourses(prev => prev.map(c => c.id === task.courseId ? updatedCourse : c));
-
-                    // TRIGGER NOTIFICATION: When 100% of videos are done
-                    if (task.notifyEmail && completedVids === task.totalReels && user?.email) {
-                        await CloudService.sendCompletionEmail(user.email, course.title);
-                        if ("Notification" in window && Notification.permission === "granted") {
-                             new Notification("Orbis Course Complete", {
-                                body: `The full video course "${course.title}" is ready.`,
-                            });
-                        }
-                    }
-                }
-            }
-        } catch (e) {
-            console.warn("Video Queue Error", e);
-        } finally {
-            setVideoQueue(prev => prev.slice(1));
-        }
-    };
-
-    if (videoQueue.length > 0) {
-        timeoutId = setTimeout(processNextVideo, 10000);
-    }
-
-    return () => clearTimeout(timeoutId);
-  }, [videoQueue, activeCourse, user, courses]);
-
-  // STEP 1: Start Analysis Flow
-  const startAnalysis = async (request: CourseRequest) => {
-    if (processingRef.current) return;
-    
-    const isGuest = user?.id === 'guest';
-    const isPro = user?.tier === 'PRO';
-
-    // LIMIT CHECK: 
-    // Guest: 1 Course Max
-    // Free (Logged In): 3 Courses Max (New Requirement)
-    // Pro: Unlimited
-    
-    if (isGuest && courses.length >= 1) {
-        alert("Guest Limit Reached. Sign in to create more courses.");
-        return;
-    }
-
-    if (!isGuest && !isPro && courses.length >= 3) {
-        alert("Free Tier Limit (3 Courses) Reached. Join the Pro waitlist for unlimited access.");
-        return;
-    }
-
-    processingRef.current = true;
-    setLoadingStatus("Analyzing syllabus structure...");
-
-    try {
-        const hasKey = await checkApiKey();
-        if (!hasKey) {
-            await promptForKey();
-            if (!(await checkApiKey())) {
-                setLoadingStatus("");
-                processingRef.current = false;
-                return;
-            }
-        }
-
-        // Public Library Check First (Feature available to all, but only PRO can publish usually, keeping simple for now)
-        const syllabusHash = generateSyllabusHash(request.syllabus);
-        setLoadingStatus("Checking knowledge base...");
-        const publicMatch = await CloudService.findPublicCourseMatch(syllabusHash);
-        
-        if (publicMatch) {
-            setLoadingStatus("Found existing course! cloning...");
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            const clonedCourse: Course = {
-                ...publicMatch,
-                id: `course-${Date.now()}-cloned`,
-                ownerId: user ? user.id : 'guest',
+           const newCourse: Course = {
+                id: `course-${Date.now()}`,
+                ownerId: user?.id || 'local',
+                isPublic: false,
+                title: analysisResult?.summary || "New Course",
+                language: request.language,
+                level: request.level,
+                mode: request.mode,
+                createdAt: Date.now(),
                 lastAccessedAt: Date.now(),
-            };
-            await persistCourse(clonedCourse);
-            await loadCourses();
-            setAppState(AppState.DASHBOARD);
-            setLoadingStatus("");
-            processingRef.current = false;
-            return;
-        }
+                reels: reels,
+                totalReels: reels.length,
+                completedReels: 0,
+                status: 'GENERATING'
+           };
 
-        // If no match, run AI Analysis
-        setLoadingStatus("AI Consultation in progress...");
-        const analysis = await analyzeSyllabus(request.syllabus);
-        setAnalysisResult(analysis);
-        setPendingRequest(request);
-        setAppState(AppState.ANALYSIS);
-        
-        setLoadingStatus("");
-        processingRef.current = false;
+           if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, newCourse);
+           else await saveLocalCourse(newCourse);
 
-    } catch (e) {
-        console.error(e);
-        setLoadingStatus("Analysis failed. Please try again.");
-        processingRef.current = false;
-    }
-  };
+           setCourses(prev => [newCourse, ...prev]);
+           setActiveCourse(newCourse);
+           setLoadingStatus('');
+           
+           setAppState(AppState.CLASSROOM);
+           processGenerationQueue(newCourse, request.notifyEmail);
 
-  // STEP 2: Confirm Generation after Analysis
-  const confirmGeneration = async (level: EducationLevel, includePYQ: boolean, answers: ConsultationAnswers, maxReels: number) => {
-     if (!pendingRequest || !analysisResult) return;
-     
-     // Determine Reel Count based on User Status
-     const isGuest = user?.id === 'guest';
-     
-     // Guest: 3 Modules (Preview)
-     // Logged In (Free or Pro): 8 Modules (Detailed)
-     const calculatedMaxReels = isGuest ? 3 : 8; 
-
-     const finalRequest: CourseRequest = {
-         ...pendingRequest,
-         level,
-         includePYQ,
-         consultationAnswers: answers,
-         maxReels: calculatedMaxReels
-     };
-
-     setAppState(AppState.INGEST); // Show spinner in ingest view
-     setLoadingStatus("Architecting Curriculum...");
-     processingRef.current = true;
-
-     try {
-         const initialReels = await generateCourseOutline(
-             finalRequest.syllabus, 
-             finalRequest.urls, 
-             finalRequest.level,
-             finalRequest.includePYQ,
-             finalRequest.consultationAnswers,
-             finalRequest.maxReels
-         );
-
-         const timePerReelMs = 8000;
-         const eta = Date.now() + (initialReels.length * timePerReelMs);
-         const syllabusHash = generateSyllabusHash(finalRequest.syllabus);
-
-         const newCourse: Course = {
-            id: `course-${Date.now()}`,
-            ownerId: user ? user.id : 'guest',
-            isPublic: true,
-            syllabusHash: syllabusHash,
-            title: initialReels[0]?.title ? `${initialReels[0].title}` : 'New Curriculum',
-            level: finalRequest.level,
-            createdAt: Date.now(),
-            lastAccessedAt: Date.now(),
-            reels: initialReels,
-            totalReels: initialReels.length,
-            completedReels: 0,
-            completedVideos: 0,
-            status: 'GENERATING',
-            estimatedReadyTime: eta,
-            processingStatus: "Initializing generation queue..."
-        };
-
-        await persistCourse(newCourse);
-        await loadCourses();
-        setAppState(AppState.DASHBOARD);
-        setLoadingStatus("");
-        processingRef.current = false;
-        setPendingRequest(null);
-        setAnalysisResult(null);
-
-        // Start PHASE 1 (Images) -> Which triggers PHASE 2 (Videos) IF Pro
-        processAssetQueueBackground(newCourse, finalRequest.notifyEmail);
-
-     } catch (e) {
-         console.error(e);
-         setLoadingStatus("Generation failed.");
-         processingRef.current = false;
-     }
-  };
-
-  const processAssetQueueBackground = async (course: Course, notifyEmail: boolean) => {
-    // Reload course from storage to ensure we have latest state (in case of resume)
-    const freshCourse = await getCourseById(course.id) || course;
-    const allReels = [...freshCourse.reels];
-    let currentCourseState = { ...freshCourse };
-    
-    const BATCH_SIZE = 3;
-    const isPro = user?.tier === 'PRO';
-
-    for (let i = 0; i < allReels.length; i += BATCH_SIZE) {
-        // Skip if this batch is already done
-        const batch = allReels.slice(i, i + BATCH_SIZE);
-        const needsProcessing = batch.some(r => !r.isReady);
-        
-        if (!needsProcessing) continue;
-
-        const batchStartIndex = i;
-        const batchEndIndex = Math.min(i + BATCH_SIZE, allReels.length);
-        
-        currentCourseState = { ...currentCourseState, processingStatus: `Synthesizing Phase 1 (Visuals) for Modules ${batchStartIndex + 1}-${batchEndIndex}...` };
-        await persistCourse(currentCourseState);
-        setCourses(prev => prev.map(c => c.id === currentCourseState.id ? currentCourseState : c));
-
-        // PHASE 1: Generate Images & Audio Parallel
-        const processedBatch = await Promise.all(batch.map(async (reel) => {
-            if (reel.isReady) return reel;
-
-            let audioUri: string | undefined;
-            try { audioUri = await generateAudio(reel.script); } catch (e) { console.warn("Audio fail", e); }
-
-            let imageUri: string | undefined;
-            if (reel.type === 'CONCEPT') {
-                try {
-                    imageUri = await generateImagenImage(reel.visualPrompt);
-                    
-                    // PHASE 2 CHECK: Only add to Video Queue if PRO
-                    if (isPro) {
-                        setVideoQueue(prev => {
-                            // Deduplicate
-                            if (prev.find(p => p.reelId === reel.id)) return prev;
-                            return [...prev, {
-                                courseId: course.id,
-                                reelId: reel.id,
-                                prompt: reel.visualPrompt,
-                                notifyEmail: notifyEmail,
-                                totalReels: allReels.length
-                            }];
-                        });
-                    }
-                } catch (e) { console.warn("Image fail", e); }
-            }
-
-            return {
-                ...reel,
-                audioUri,
-                imageUri,
-                isProcessing: false,
-                isReady: true,
-                script: (!audioUri && !imageUri && reel.type === 'CONCEPT') ? "Content unavailable due to network." : reel.script
-            };
-        }));
-
-        processedBatch.forEach((reel, index) => { allReels[batchStartIndex + index] = reel; });
-
-        const completedCount = allReels.filter(r => r.isReady).length;
-        const isPhase1Complete = completedCount >= allReels.length;
-
-        currentCourseState = {
-            ...currentCourseState,
-            reels: allReels,
-            completedReels: completedCount,
-            status: isPhase1Complete ? 'READY' : 'GENERATING',
-            processingStatus: isPhase1Complete 
-                ? (isPro ? 'Phase 1 Complete. Entering Phase 2: Video Synthesis...' : 'Course Ready (Standard Tier)')
-                : `Batch ${Math.ceil((i + 1)/BATCH_SIZE)} finished.`
-        };
-
-        await persistCourse(currentCourseState);
-        setCourses(prev => prev.map(c => c.id === currentCourseState.id ? currentCourseState : c));
-
-        if (isPhase1Complete) {
-            await CloudService.publishCourseToLibrary(currentCourseState);
-            // Trigger Phase 1 Notification
-             if ("Notification" in window && Notification.permission === "granted") {
-                 new Notification("Orbis Course Preview Ready", {
-                    body: `"${currentCourseState.title}" is ready for viewing.`,
-                });
-            }
-        }
-    }
-  };
-
-  const handleSelectCourse = async (courseId: string) => {
-      // Try local first
-      let course = await getCourseById(courseId);
-      
-      // If not local (maybe new device sync), check state
-      if (!course) {
-          course = courses.find(c => c.id === courseId);
+      } catch (e) {
+           console.error(e);
+           setLoadingStatus('');
+           alert("Failed to generate course. Please try again.");
+           setAppState(AppState.DASHBOARD);
       }
+  };
 
-      if (course) {
-          const canOpen = course.status === 'READY' || course.completedReels >= 1;
-          if (canOpen) {
-            const updated = { ...course, lastAccessedAt: Date.now() };
-            await persistCourse(updated);
-            setActiveCourse(updated);
-            setAppState(AppState.FEED);
+  const processGenerationQueue = async (course: Course, notifyEmail: boolean) => {
+       const updatedCourse = JSON.parse(JSON.stringify(course));
+       
+       for (let i = 0; i < updatedCourse.reels.length; i++) {
+            const reel = updatedCourse.reels[i];
+            if (reel.isReady) continue;
+
+            try {
+                if (!reel.audioUri) {
+                    const voice = user?.profile?.voice || 'Kore';
+                    const audioBase64 = await generateAudio(reel.script, voice);
+                    updatedCourse.reels[i].audioUri = audioBase64;
+                }
+                
+                if (course.mode === 'CRASH_COURSE' && updatedCourse.reels[i].audioUri) {
+                    updatedCourse.reels[i].isReady = true;
+                    updatedCourse.reels[i].isProcessing = false;
+                    updatedCourse.completedReels += 1;
+                }
+                
+                if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, updatedCourse);
+                else await saveLocalCourse(updatedCourse);
+                setActiveCourse({...updatedCourse});
+
+            } catch (e) { console.error("Audio gen failed", e); }
+       }
+
+       if (course.mode !== 'CRASH_COURSE') {
+            for (let i = 0; i < updatedCourse.reels.length; i++) {
+                const reel = updatedCourse.reels[i];
+                if (reel.isReady) continue;
+                
+                setVideoQueue(prev => [...prev, {
+                    courseId: course.id,
+                    reelId: reel.id,
+                    prompt: reel.visualPrompt,
+                    notifyEmail,
+                    totalReels: course.totalReels
+                }]);
+            }
+       } else {
+            updatedCourse.status = 'READY';
+            updatedCourse.completedReels = updatedCourse.totalReels;
+            setActiveCourse({...updatedCourse});
+            setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+            if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, updatedCourse);
+            else await saveLocalCourse(updatedCourse);
+       }
+  };
+
+  useEffect(() => {
+      if (processingRef.current || videoQueue.length === 0) return;
+
+      const processItem = async () => {
+          processingRef.current = true;
+          const item = videoQueue[0];
+          
+          try {
+              const currentCourse = courses.find(c => c.id === item.courseId);
+              if (!currentCourse) {
+                  setVideoQueue(prev => prev.slice(1));
+                  processingRef.current = false;
+                  return;
+              }
+              
+              const updatedCourse = JSON.parse(JSON.stringify(currentCourse));
+              const reelIndex = updatedCourse.reels.findIndex((r: ReelData) => r.id === item.reelId);
+              if (reelIndex === -1) {
+                   setVideoQueue(prev => prev.slice(1));
+                   processingRef.current = false;
+                   return;
+              }
+
+              const reel = updatedCourse.reels[reelIndex];
+
+              let audioUri = reel.audioUri;
+              if (!audioUri) {
+                  audioUri = await generateAudio(reel.script, user?.profile?.voice || 'Kore');
+                  updatedCourse.reels[reelIndex].audioUri = audioUri;
+              }
+
+              if (!audioUri) {
+                  console.warn(`Audio generation failed for reel ${item.reelId}. Skipping completion.`);
+                  if (activeCourse?.id === updatedCourse.id) setActiveCourse(updatedCourse);
+                  setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+                  if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, updatedCourse);
+                  else await saveLocalCourse(updatedCourse);
+                  
+                  setVideoQueue(prev => prev.slice(1));
+                  processingRef.current = false;
+                  return;
+              }
+
+              let videoUri = null;
+              let imageUri = null;
+
+              try {
+                  const opName = await triggerVeoGeneration(item.prompt);
+                  if (opName) {
+                      const startTime = Date.now();
+                      while (Date.now() - startTime < 30000) {
+                          const status = await pollVeoOperation(opName);
+                          if (status.status === 'COMPLETE' && status.uri) {
+                              videoUri = status.uri;
+                              break;
+                          }
+                          if (status.status === 'FAILED') break;
+                          await new Promise(r => setTimeout(r, 2000));
+                      }
+                  }
+              } catch (e) {
+                  console.warn("Veo generation attempt failed, falling back to Image", e);
+              }
+
+              if (!videoUri) {
+                  const useHighQuality = user?.tier === 'PRO';
+                  imageUri = await generateImagenImage(item.prompt, useHighQuality);
+              }
+
+              updatedCourse.reels[reelIndex].videoUri = videoUri;
+              updatedCourse.reels[reelIndex].imageUri = imageUri;
+
+              if (updatedCourse.reels[reelIndex].audioUri && (updatedCourse.reels[reelIndex].videoUri || updatedCourse.reels[reelIndex].imageUri)) {
+                  updatedCourse.reels[reelIndex].isReady = true;
+                  updatedCourse.reels[reelIndex].isProcessing = false;
+                  updatedCourse.completedReels += 1;
+              }
+
+              if (updatedCourse.completedReels === updatedCourse.totalReels) {
+                  updatedCourse.status = 'READY';
+                  if (item.notifyEmail && user?.email) {
+                      CloudService.sendCompletionEmail(user.email, updatedCourse.title);
+                  }
+              }
+
+              if (activeCourse?.id === updatedCourse.id) setActiveCourse(updatedCourse);
+              setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+              
+              if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, updatedCourse);
+              else await saveLocalCourse(updatedCourse);
+
+          } catch (e) {
+              console.error("Generation failed for item", item, e);
+          } finally {
+              setVideoQueue(prev => prev.slice(1));
+              processingRef.current = false;
           }
-      }
-  };
+      };
 
-  const handleDeleteCourse = async (courseId: string) => {
-      if (user && user.id !== 'guest') {
-          await CloudService.deleteUserCourse(user.id, courseId);
-      }
-      await deleteLocalCourse(courseId);
-      await loadCourses();
-  };
+      processItem();
+  }, [videoQueue, courses, activeCourse, user]);
 
   const handleUpdateReel = (id: string, updates: Partial<ReelData>) => {
-      if (activeCourse) {
-          const newReels = activeCourse.reels.map(r => r.id === id ? { ...r, ...updates } : r);
-          const updatedCourse = { ...activeCourse, reels: newReels };
+      if (!activeCourse) return;
+      const updatedCourse = { ...activeCourse };
+      const reelIndex = updatedCourse.reels.findIndex(r => r.id === id);
+      if (reelIndex !== -1) {
+          updatedCourse.reels[reelIndex] = { ...updatedCourse.reels[reelIndex], ...updates };
+          
+          const totalQuizzes = updatedCourse.reels.filter(r => r.quiz).length;
+          const passedQuizzes = updatedCourse.reels.filter(r => r.userQuizResult === true).length;
+          if (totalQuizzes > 0) {
+              updatedCourse.masteryScore = Math.round((passedQuizzes / totalQuizzes) * 100);
+          }
+
+          updatedCourse.lastAccessedAt = Date.now();
           setActiveCourse(updatedCourse);
-          persistCourse(updatedCourse);
+          setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+          
+          if (user && user.id !== 'guest') CloudService.saveUserCourse(user.id, updatedCourse);
+          else saveLocalCourse(updatedCourse);
       }
   };
 
-  const handleBackToHome = () => {
-      setAppState(AppState.DASHBOARD);
-      setActiveCourse(null);
-      setLoadingStatus("");
-      loadCourses();
+  const handleRegenerateImage = async (reelId: string) => {
+      if (!activeCourse) return;
+      const courseClone = JSON.parse(JSON.stringify(activeCourse));
+      const reelIndex = courseClone.reels.findIndex((r: ReelData) => r.id === reelId);
+      if (reelIndex === -1) return;
+
+      const reel = courseClone.reels[reelIndex];
+      reel.isProcessing = true;
+      courseClone.reels[reelIndex] = reel;
+      
+      setActiveCourse({...courseClone});
+      setCourses(prev => prev.map(c => c.id === courseClone.id ? courseClone : c));
+
+      try {
+          const useHighQuality = user?.tier === 'PRO';
+          const imageUri = await generateImagenImage(reel.visualPrompt, useHighQuality);
+          
+          const updatedReel = { ...reel, imageUri, isProcessing: false, isReady: true };
+          courseClone.reels[reelIndex] = updatedReel;
+          
+          setActiveCourse({...courseClone});
+          setCourses(prev => prev.map(c => c.id === courseClone.id ? courseClone : c));
+          
+          if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, courseClone);
+          else await saveLocalCourse(courseClone);
+          
+          showToast("Visual regenerated!");
+      } catch (e) {
+          console.error("Image generation failed", e);
+          courseClone.reels[reelIndex].isProcessing = false;
+          setActiveCourse({...courseClone}); 
+          setCourses(prev => prev.map(c => c.id === courseClone.id ? courseClone : c));
+          showToast("Failed to generate image.");
+      }
   };
-  
-  // Show Loading Spinner while checking auth state
-  if (authLoading) {
-      return (
-        <div className="h-[100dvh] w-full bg-[var(--orbis-bg)] flex items-center justify-center">
-            <div className="w-10 h-10 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      );
-  }
+
+  const handleGenerateRemedial = async (failedReels: ReelData[]) => {
+      if (!activeCourse) return;
+      setLoadingStatus("Generating Remedial Modules...");
+      try {
+          const remedialReels = await generateRemedialCurriculum(failedReels, activeCourse.level);
+          const updatedCourse = { ...activeCourse };
+          updatedCourse.reels = [...updatedCourse.reels, ...remedialReels];
+          updatedCourse.totalReels += remedialReels.length;
+          updatedCourse.remedialCount = (updatedCourse.remedialCount || 0) + 1;
+          
+          setActiveCourse(updatedCourse);
+          setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+          if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, updatedCourse);
+          else await saveLocalCourse(updatedCourse);
+          
+          setLoadingStatus('');
+          processGenerationQueue(updatedCourse, false);
+      } catch (e) {
+          setLoadingStatus('');
+          alert("Could not generate remedial content.");
+      }
+  };
+
+  const handleGenerateTopic = async (semesterId: string, subjectId: string, unitId: string, topic: SemesterTopic) => {
+        const updatedSemesters = [...semesters];
+        const semIdx = updatedSemesters.findIndex(s => s.id === semesterId);
+        if (semIdx === -1) return;
+        const sub = updatedSemesters[semIdx].subjects.find(s => s.id === subjectId);
+        const unit = sub?.units.find((u: any) => u.id === unitId);
+        const t = unit?.topics?.find((t: any) => t.id === topic.id);
+        
+        if (t) t.status = 'GENERATING';
+        setSemesters(updatedSemesters);
+
+        try {
+            const reels = await generateCourseOutline(
+               `${topic.title}: ${topic.description}. Context: ${unit?.description}`, 
+               [], 
+               updatedSemesters[semIdx].level, 
+               false,
+               'English',
+               undefined,
+               {},
+               5,
+               'GENERAL',
+               'VIDEO'
+            );
+
+            const newCourse: Course = {
+                id: `course-${Date.now()}`,
+                ownerId: user?.id || 'local',
+                isPublic: false,
+                title: topic.title,
+                language: 'English',
+                level: updatedSemesters[semIdx].level,
+                mode: 'VIDEO',
+                createdAt: Date.now(),
+                lastAccessedAt: Date.now(),
+                reels: reels,
+                totalReels: reels.length,
+                completedReels: 0,
+                status: 'GENERATING',
+                semesterId, subjectId, unitId, topicId: topic.id
+           };
+
+           if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, newCourse);
+           else await saveLocalCourse(newCourse);
+           setCourses(prev => [newCourse, ...prev]);
+
+           t.status = 'GENERATED';
+           t.courseId = newCourse.id;
+           setSemesters([...updatedSemesters]); 
+           
+           if (user && user.id !== 'guest') await CloudService.saveUserSemester(user.id, updatedSemesters[semIdx]);
+           else await saveLocalSemester(updatedSemesters[semIdx]);
+
+           processGenerationQueue(newCourse, false);
+
+        } catch (e) {
+             console.error(e);
+             t.status = 'PENDING';
+             setSemesters([...updatedSemesters]);
+        }
+  };
+
+  const handleDeleteCourse = async (id: string) => {
+      if (user && user.id !== 'guest') await CloudService.deleteUserCourse(user.id, id);
+      else await deleteLocalCourse(id);
+      
+      setCourses(prev => prev.filter(c => c.id !== id));
+      if (activeCourse?.id === id) setActiveCourse(null);
+  };
+
+  const handleDeleteSemester = async (id: string) => {
+      if (user && user.id !== 'guest') await CloudService.deleteUserSemester(user.id, id);
+      else await deleteLocalSemester(id);
+      
+      setSemesters(prev => prev.filter(s => s.id !== id));
+      if (activeSemesterId === id) { setActiveSemesterId(null); setAppState(AppState.DASHBOARD); }
+  };
+
+  const handleXPUpgrade = (amount: number) => {
+      if (user && user.id !== 'guest') {
+          const newXP = (user.profile?.xp || 0) + amount;
+          const updatedProfile = { ...user.profile, xp: newXP } as any;
+          setUser({ ...user, profile: updatedProfile });
+          CloudService.updateUserProfile(user.id, updatedProfile);
+      }
+  };
+
+  const handleOpenReel = (index: number) => {
+      setStartReelIndex(index);
+      setAppState(AppState.FEED);
+  };
+
+  if (authLoading) return <LoadingFallback />;
 
   return (
-    <div className="w-full h-[100dvh] bg-[var(--orbis-bg)] text-[var(--orbis-text)] font-sans overflow-hidden transition-colors duration-300">
-      
-      {/* Import Shared Course Modal */}
-      {sharedCourseToImport && (
-          <div className="fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm flex items-center justify-center p-6">
-              <div className="bg-white dark:bg-stone-900 w-full max-w-md rounded-2xl p-8 border border-stone-200 dark:border-stone-800 shadow-2xl animate-fade-in relative overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-orange-400 to-orange-600"></div>
-                  
-                  <div className="mb-6 flex flex-col items-center text-center">
-                       <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-500 rounded-full flex items-center justify-center mb-4">
-                           <span className="material-symbols-outlined text-2xl">download</span>
-                       </div>
-                       <h2 className="text-xl font-bold text-stone-900 dark:text-white font-display mb-1">Incoming Course</h2>
-                       <p className="text-sm text-stone-500 dark:text-stone-400">"{sharedCourseToImport.title}"</p>
-                  </div>
-
-                  <div className="bg-stone-50 dark:bg-stone-950 p-4 rounded-lg mb-8 border border-stone-100 dark:border-stone-800">
-                      <div className="flex justify-between items-center text-xs mb-2">
-                          <span className="text-stone-500 uppercase font-bold tracking-wider">Level</span>
-                          <span className="text-stone-800 dark:text-stone-200 font-bold">{sharedCourseToImport.level}</span>
-                      </div>
-                      <div className="flex justify-between items-center text-xs">
-                          <span className="text-stone-500 uppercase font-bold tracking-wider">Modules</span>
-                          <span className="text-stone-800 dark:text-stone-200 font-bold">{sharedCourseToImport.totalReels}</span>
-                      </div>
-                  </div>
-
-                  <div className="space-y-3">
-                      <button 
-                        onClick={handleImportSharedCourse}
-                        className="w-full py-4 bg-stone-900 dark:bg-stone-100 hover:bg-orange-600 dark:hover:bg-orange-500 text-white dark:text-stone-900 font-bold uppercase tracking-widest text-xs transition-colors shadow-lg rounded"
-                      >
-                          {user ? 'Import to Library' : 'Copy Structure (Guest)'}
-                      </button>
-                      <button 
-                        onClick={() => setSharedCourseToImport(null)}
-                        className="w-full py-3 text-stone-400 hover:text-stone-600 dark:hover:text-stone-300 text-xs font-bold uppercase tracking-widest"
-                      >
-                          Discard
-                      </button>
-                  </div>
-              </div>
+    <Suspense fallback={<LoadingFallback />}>
+      {toastMsg && (
+          <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-stone-900 text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest z-[100] animate-fade-in shadow-xl">
+              {toastMsg}
           </div>
       )}
 
       {appState === AppState.LANDING && (
-          <LandingView onEnter={handleEnterApp} />
+        <LandingView 
+          onEnter={() => setAppState(user ? AppState.DASHBOARD : AppState.AUTH)} 
+          onNavigate={(page) => setAppState(page as any)}
+          onToggleTheme={handleToggleTheme}
+          currentTheme={theme}
+        />
       )}
 
       {appState === AppState.AUTH && (
-          <AuthView 
+        <AuthView 
             onLogin={handleLogin} 
             onGuest={handleGuest} 
-            onToggleTheme={handleToggleTheme} 
+            onToggleTheme={handleToggleTheme}
             currentTheme={theme}
+        />
+      )}
+
+      {appState === AppState.PRICING && (
+          <PricingView 
+             onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)} 
+             onGetStarted={() => setAppState(user ? AppState.DASHBOARD : AppState.AUTH)}
+             onToggleTheme={handleToggleTheme}
+             currentTheme={theme}
+          />
+      )}
+
+      {appState === AppState.CONTACT && (
+          <ContactView 
+             onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)}
+             onToggleTheme={handleToggleTheme}
+             currentTheme={theme}
+             onNavigate={(page) => setAppState(page as any)}
+          />
+      )}
+
+       {appState === AppState.SITEMAP && (
+          <SitemapView 
+             onNavigate={(page) => setAppState(page)}
+             onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)}
           />
       )}
 
       {appState === AppState.DASHBOARD && (
-          <Dashboard 
-            user={user}
-            courses={courses}
-            onCreateNew={() => setAppState(AppState.INGEST)}
-            onSelectCourse={handleSelectCourse}
-            onDeleteCourse={handleDeleteCourse}
-            onSignOut={handleSignOut}
-            onToggleTheme={handleToggleTheme}
-            currentTheme={theme}
+        <Dashboard 
+          user={user} 
+          courses={courses} 
+          semesters={semesters}
+          onCreateNew={() => setAppState(AppState.INGEST)} 
+          onSelectCourse={(id) => { 
+              const c = courses.find(c => c.id === id); 
+              if (c) { setActiveCourse(c); setAppState(AppState.CLASSROOM); } 
+          }}
+          onSelectSemester={(sem) => {
+              setActiveSemesterId(sem.id);
+              setAppState(AppState.SEMESTER_VIEW);
+          }}
+          onDeleteCourse={handleDeleteCourse}
+          onSignOut={() => { CloudService.signOut(); setUser(null); setAppState(AppState.LANDING); }}
+          onToggleTheme={handleToggleTheme}
+          currentTheme={theme}
+        />
+      )}
+
+      {appState === AppState.SEMESTER_VIEW && activeSemester && (
+          <SemesterView 
+             semester={activeSemester}
+             onBack={() => setAppState(AppState.DASHBOARD)}
+             onGenerateUnit={() => {}}
+             onGenerateTopic={handleGenerateTopic}
+             onOpenUnit={(courseId) => {
+                 const c = courses.find(c => c.id === courseId);
+                 if (c) { setActiveCourse(c); setAppState(AppState.CLASSROOM); }
+             }}
+             onUpdateSemester={(updated) => {
+                  setSemesters(prev => prev.map(s => s.id === updated.id ? updated : s));
+                  if (user && user.id !== 'guest') CloudService.saveUserSemester(user.id, updated);
+                  else saveLocalSemester(updated);
+             }}
+             onDeleteSemester={handleDeleteSemester}
           />
       )}
 
       {appState === AppState.INGEST && (
         <IngestView 
-            user={user}
-            onStart={startAnalysis} 
-            onCancel={handleBackToHome}
-            loadingStatus={loadingStatus}
-            currentTheme={theme}
+           user={user}
+           onStart={handleStartAnalysis} 
+           onCancel={() => setAppState(AppState.DASHBOARD)}
+           loadingStatus={loadingStatus}
+           currentTheme={theme}
         />
       )}
 
       {appState === AppState.ANALYSIS && analysisResult && (
         <AnalysisView 
-            analysis={analysisResult}
-            onConfirm={(l, p, a) => confirmGeneration(l, p, a, 0)} // maxReels calculated in function
-            onCancel={handleBackToHome}
+           analysis={analysisResult} 
+           onConfirm={handleConfirmCourse} 
+           onCancel={() => setAppState(AppState.INGEST)} 
         />
+      )}
+
+      {appState === AppState.CLASSROOM && activeCourse && (
+          <ClassroomView 
+              course={activeCourse}
+              onBack={() => setAppState(AppState.DASHBOARD)}
+              onOpenReel={handleOpenReel}
+              onStartExam={() => setAppState(AppState.EXAM)}
+              onToggleTheme={handleToggleTheme}
+              currentTheme={theme}
+          />
+      )}
+
+      {appState === AppState.EXAM && activeCourse && (
+          <ExamView
+              course={activeCourse}
+              onClose={() => setAppState(AppState.CLASSROOM)}
+              onComplete={(score) => handleXPUpgrade(score * 10)}
+          />
       )}
 
       {appState === AppState.FEED && activeCourse && (
         <ReelFeed 
-            reels={activeCourse.reels} 
-            onUpdateReel={handleUpdateReel} 
-            onBack={handleBackToHome}
+           activeCourse={activeCourse} 
+           reels={activeCourse.reels} 
+           onUpdateReel={handleUpdateReel} 
+           onBack={() => setAppState(AppState.CLASSROOM)}
+           onGenerateRemedial={handleGenerateRemedial}
+           onXPUpgrade={handleXPUpgrade}
+           onRegenerateImage={handleRegenerateImage}
         />
       )}
-    </div>
+    </Suspense>
   );
 };
 

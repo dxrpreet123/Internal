@@ -1,6 +1,7 @@
 
-import React, { useState } from 'react';
-import { CourseRequest, EducationLevel, User } from '../types';
+import React, { useState, useEffect } from 'react';
+import { CourseRequest, User, Language, CourseMode, CramType } from '../types';
+import { extractTextFromPDF } from '../services/geminiService';
 
 interface IngestViewProps {
   user: User | null;
@@ -10,147 +11,159 @@ interface IngestViewProps {
   currentTheme: 'light' | 'dark';
 }
 
+const LANGUAGES: Language[] = ['English', 'Hindi', 'Spanish', 'French', 'German', 'Chinese', 'Japanese', 'Korean', 'Portuguese', 'Italian', 'Russian', 'Arabic'];
+
 const IngestView: React.FC<IngestViewProps> = ({ user, onStart, onCancel, loadingStatus }) => {
   const [syllabus, setSyllabus] = useState('');
-  const [urls, setUrls] = useState<string[]>(['']);
-  const [notifyEmail, setNotifyEmail] = useState(true);
+  const [language, setLanguage] = useState<Language>('English');
+  const [mode, setMode] = useState<'SINGLE' | 'SEMESTER'>('SINGLE');
+  const [courseMode, setCourseMode] = useState<CourseMode>('VIDEO');
+  const [cramHours, setCramHours] = useState(10);
+  const [semesterName, setSemesterName] = useState('');
+  const [isReadingPdf, setIsReadingPdf] = useState(false);
 
-  const handleUrlChange = (index: number, value: string) => {
-    const newUrls = [...urls];
-    newUrls[index] = value;
-    setUrls(newUrls);
-  };
+  useEffect(() => {
+      if (user?.profile?.language) setLanguage(user.profile.language);
+  }, [user]);
 
-  const addUrlField = () => {
-    setUrls([...urls, '']);
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+      setIsReadingPdf(true);
+      try {
+          let allText = "";
+          for (let i = 0; i < files.length; i++) {
+              if (files[i].type === 'application/pdf') {
+                  const text = await extractTextFromPDF(files[i]);
+                  allText += `--- FILE: ${files[i].name} ---\n${text}\n\n`;
+              }
+          }
+          setSyllabus(prev => prev + "\n" + allText);
+      } catch (err) { alert("PDF Read Error"); } finally { setIsReadingPdf(false); }
   };
 
   const handleSubmit = () => {
     if (!syllabus.trim()) return;
-    const cleanUrls = urls.filter(u => u.trim().length > 0);
-    // Level and PYQ will be set in the Analysis Step, default here
-    // maxReels is placeholder, will be overridden in App.tsx based on User Tier
-    onStart({ syllabus, urls: cleanUrls, level: 'COLLEGE', notifyEmail: user ? notifyEmail : false, includePYQ: false, maxReels: 3 });
+    if (mode === 'SEMESTER' && !semesterName.trim()) { alert("Name your semester."); return; }
+    onStart({ 
+        syllabus, 
+        urls: [], 
+        level: 'COLLEGE', 
+        language,
+        pyqContent: '',
+        notifyEmail: false, 
+        includePYQ: true, 
+        maxReels: courseMode === 'CRASH_COURSE' ? Math.max(3, Math.ceil(cramHours * 2)) : 3,
+        isSemesterInit: mode === 'SEMESTER',
+        semesterName: semesterName,
+        mode: courseMode,
+        cramConfig: courseMode === 'CRASH_COURSE' ? { hoursLeft: cramHours, type: 'TEACH' } : undefined
+    });
   };
 
   if (loadingStatus) {
     return (
-      <div className="flex flex-col items-center justify-center h-[100dvh] bg-stone-50 dark:bg-stone-950 p-6 text-center font-sans transition-colors duration-300">
-         <div className="w-16 h-16 mb-8 relative">
-            <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full animate-spin">
-                <circle cx="50" cy="50" r="22" className="text-orange-600 dark:text-orange-500 fill-current" />
-                <g className="text-orange-700 dark:text-orange-400 opacity-60" stroke="currentColor" strokeWidth="0.5">
-                   <ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(0 50 50)" />
-                   <ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(45 50 50)" />
-                   <ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(90 50 50)" />
-                   <ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(135 50 50)" />
-                </g>
-            </svg>
-         </div>
-         <h2 className="text-lg md:text-xl font-bold text-stone-900 dark:text-white mb-2 tracking-tight font-display">Processing Input</h2>
-         <p className="text-stone-500 dark:text-stone-400 mb-10 max-w-xs text-sm tracking-wide">{loadingStatus}</p>
+      <div className="h-[100dvh] bg-[#fafaf9] dark:bg-[#0c0a09] flex flex-col items-center justify-center font-sans px-6 text-center">
+         <div className="w-12 h-12 border-4 border-stone-200 dark:border-stone-800 border-t-orange-600 rounded-full animate-spin mb-8"></div>
+         <h2 className="text-xl font-bold text-stone-900 dark:text-white font-display mb-2">{loadingStatus}</h2>
+         <p className="text-sm text-stone-500">This might take a moment.</p>
       </div>
     );
   }
 
   return (
-    <div className="h-[100dvh] w-full bg-stone-50 dark:bg-stone-950 overflow-y-auto font-sans scroll-smooth transition-colors duration-300">
-      <div className="flex flex-col items-center pt-4 pb-40 px-4 min-h-full">
-        <div className="w-full max-w-3xl">
-            
-            <div className="mb-6 flex items-center justify-between">
-                <button onClick={onCancel} className="text-stone-500 dark:text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors flex items-center gap-2 text-xs font-bold uppercase tracking-widest p-2 -ml-2">
-                    <span className="material-symbols-outlined text-base">arrow_back</span> Back
-                </button>
-            </div>
+    <div className="h-[100dvh] w-full bg-[#fafaf9] dark:bg-[#0c0a09] font-sans flex flex-col">
+      
+      {/* Header */}
+      <div className="p-6 md:p-8 flex justify-between items-center shrink-0">
+          <button onClick={onCancel} className="text-xs font-bold uppercase tracking-widest text-stone-500 hover:text-stone-900 dark:hover:text-white transition-colors">
+              Back
+          </button>
+          <div className="flex gap-4 text-xs font-bold uppercase tracking-widest text-stone-400">
+              <button onClick={() => setMode('SINGLE')} className={mode === 'SINGLE' ? 'text-orange-600' : 'hover:text-stone-600'}>Single Course</button>
+              <span>/</span>
+              <button onClick={() => setMode('SEMESTER')} className={mode === 'SEMESTER' ? 'text-orange-600' : 'hover:text-stone-600'}>Semester Plan</button>
+          </div>
+      </div>
 
-            <div className="bg-white dark:bg-stone-900 p-6 md:p-12 border border-stone-200 dark:border-stone-800 shadow-sm transition-colors duration-300">
-                <div className="mb-10">
-                    <div className="flex items-center gap-2 mb-4">
-                        <div className="w-4 h-4 text-orange-600 dark:text-orange-500">
-                            <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
-                                <circle cx="50" cy="50" r="22" className="fill-current" />
-                                <g className="opacity-60" stroke="currentColor" strokeWidth="0.5">
-                                    <ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(0 50 50)" />
-                                    <ellipse cx="50" cy="50" rx="48" ry="14" transform="rotate(90 50 50)" />
-                                </g>
-                            </svg>
-                        </div>
-                        <span className="text-orange-600 dark:text-orange-500 font-bold text-[10px] tracking-widest uppercase">Step 1</span>
-                    </div>
-                    <h1 className="text-3xl md:text-4xl font-bold text-stone-900 dark:text-white mb-3 tracking-tighter font-display">Input Curriculum</h1>
-                    <p className="text-stone-500 dark:text-stone-400 text-sm md:text-base">Paste your syllabus or notes. Orbis will analyze it before generating.</p>
-                </div>
-                
-                <div className="space-y-4 mb-8">
-                    <label className="block text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest">Syllabus Data</label>
-                    <textarea
-                        className="w-full min-h-[200px] p-5 text-sm md:text-base text-stone-900 dark:text-white bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 resize-none leading-relaxed focus:border-orange-600 dark:focus:border-orange-500 outline-none transition-all font-mono"
-                        placeholder="Paste topics, notes, or full syllabus text here..."
-                        value={syllabus}
-                        onChange={(e) => setSyllabus(e.target.value)}
-                    />
-                    <div className="flex items-center justify-between px-1">
-                        <p className="text-[10px] text-stone-400 uppercase tracking-wider">Plain text supported</p>
-                        {user && (
-                            <label className="flex items-center gap-2 cursor-pointer group">
-                                <div className="relative flex items-center">
-                                    <input 
-                                        type="checkbox" 
-                                        checked={notifyEmail} 
-                                        onChange={e => setNotifyEmail(e.target.checked)}
-                                        className="peer h-3 w-3 cursor-pointer appearance-none border border-stone-300 dark:border-stone-700 bg-transparent checked:bg-orange-600 checked:border-orange-600 transition-all"
-                                    />
-                                </div>
-                                <span className="text-[10px] uppercase tracking-wider text-stone-500 dark:text-stone-400 group-hover:text-orange-600 transition-colors">Email Notification</span>
-                            </label>
-                        )}
-                    </div>
-                </div>
+      {/* Main Form */}
+      <div className="flex-1 flex flex-col items-center justify-center p-6 md:p-12 overflow-y-auto">
+          <div className="w-full max-w-2xl animate-fade-in pb-10">
+              
+              <div className="mb-10 md:mb-12">
+                  <h1 className="text-3xl md:text-5xl font-bold text-stone-900 dark:text-white font-display mb-4 leading-tight">
+                      {mode === 'SEMESTER' ? "Architect your Semester." : "What are we learning?"}
+                  </h1>
+                  <p className="text-stone-500 dark:text-stone-400 text-sm">
+                      Paste your syllabus, topics, or upload documents.
+                  </p>
+              </div>
 
-                <div className="space-y-4 pt-2">
-                    <label className="block text-[10px] font-bold text-stone-400 dark:text-stone-500 uppercase tracking-widest">External Context (Optional)</label>
-                    {urls.map((url, idx) => (
-                        <div key={idx} className="relative group">
-                            <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex items-center justify-center pointer-events-none">
-                                <span className="material-symbols-outlined text-stone-400 text-lg">link</span>
-                            </div>
-                            <input
-                                type="url"
-                                className="w-full pl-12 p-3 bg-stone-50 dark:bg-stone-950 border border-stone-200 dark:border-stone-800 text-sm text-stone-900 dark:text-white focus:border-orange-600 dark:focus:border-orange-500 outline-none transition-all font-mono"
-                                placeholder="https://..."
-                                value={url}
-                                onChange={(e) => handleUrlChange(idx, e.target.value)}
-                            />
-                        </div>
-                    ))}
-                    <div>
-                        <button 
-                            onClick={addUrlField}
-                            className="text-orange-600 dark:text-orange-500 text-xs font-bold py-2 px-1 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors inline-flex items-center gap-1 uppercase tracking-wider"
-                        >
-                            + Add Resource
-                        </button>
-                    </div>
-                </div>
+              <div className="space-y-6 md:space-y-8">
+                  {mode === 'SEMESTER' && (
+                      <input 
+                          type="text" 
+                          placeholder="Semester Name (e.g. Fall 2025)"
+                          value={semesterName}
+                          onChange={e => setSemesterName(e.target.value)}
+                          className="w-full py-4 bg-transparent border-b border-stone-200 dark:border-stone-800 text-xl outline-none focus:border-orange-600 text-stone-900 dark:text-white placeholder-stone-300 transition-colors font-display"
+                      />
+                  )}
 
-                <div className="pt-12 mt-8 flex justify-end border-t border-stone-100 dark:border-stone-800">
-                    <button
-                        onClick={handleSubmit}
-                        disabled={!syllabus.trim()}
-                        className={`w-full md:w-auto px-10 py-4 text-xs font-bold uppercase tracking-widest transition-all flex items-center justify-center gap-3 ${
-                            syllabus.trim() 
-                            ? 'bg-orange-600 hover:bg-orange-700 text-white' 
-                            : 'bg-stone-100 dark:bg-stone-800 text-stone-400 cursor-not-allowed'
-                        }`}
-                    >
-                        Analyze Syllabus
-                        <span className="material-symbols-outlined text-base">analytics</span>
-                    </button>
-                </div>
+                  <div className="relative group">
+                      <textarea
+                          className="w-full min-h-[150px] md:min-h-[200px] py-4 bg-transparent border-b border-stone-200 dark:border-stone-800 text-lg md:text-xl outline-none focus:border-orange-600 text-stone-900 dark:text-white placeholder-stone-300 transition-colors font-display resize-none"
+                          placeholder="Paste content here..."
+                          value={syllabus}
+                          onChange={(e) => setSyllabus(e.target.value)}
+                      />
+                      <label className="absolute top-4 right-0 cursor-pointer text-[10px] md:text-xs font-bold uppercase tracking-widest text-orange-600 hover:text-orange-700 transition-colors bg-[#fafaf9] dark:bg-[#0c0a09] pl-2">
+                          {isReadingPdf ? 'Reading...' : '+ Upload PDF'}
+                          <input type="file" accept="application/pdf" multiple className="hidden" onChange={handleFileUpload} disabled={isReadingPdf} />
+                      </label>
+                  </div>
 
-            </div>
-        </div>
+                  <div className="flex flex-col md:flex-row md:items-center gap-6 md:gap-8 pt-4">
+                       <select 
+                          value={language} 
+                          onChange={e => setLanguage(e.target.value as Language)}
+                          className="bg-transparent text-xs font-bold uppercase tracking-widest text-stone-500 hover:text-stone-900 dark:hover:text-white outline-none cursor-pointer w-full md:w-auto"
+                       >
+                           {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
+                       </select>
+
+                       {mode === 'SINGLE' && (
+                           <div className="flex gap-4">
+                               <button 
+                                  onClick={() => setCourseMode('VIDEO')}
+                                  className={`text-xs font-bold uppercase tracking-widest transition-colors ${courseMode === 'VIDEO' ? 'text-orange-600' : 'text-stone-400 hover:text-stone-600'}`}
+                               >
+                                   Cinematic
+                               </button>
+                               <button 
+                                  onClick={() => setCourseMode('CRASH_COURSE')}
+                                  className={`text-xs font-bold uppercase tracking-widest transition-colors ${courseMode === 'CRASH_COURSE' ? 'text-orange-600' : 'text-stone-400 hover:text-stone-600'}`}
+                               >
+                                   Exam Cram
+                               </button>
+                           </div>
+                       )}
+                  </div>
+
+                  <button 
+                      onClick={handleSubmit}
+                      disabled={!syllabus.trim()}
+                      className={`w-full py-4 md:py-5 mt-8 font-bold uppercase tracking-widest text-xs rounded-full transition-all flex items-center justify-center gap-2 ${
+                          syllabus.trim() 
+                          ? 'bg-stone-900 dark:bg-white text-white dark:text-stone-900 hover:bg-orange-600 dark:hover:bg-orange-500 hover:text-white dark:hover:text-white hover:shadow-xl' 
+                          : 'bg-stone-100 dark:bg-stone-800 text-stone-400 cursor-not-allowed'
+                      }`}
+                  >
+                      Start Analysis <span className="material-symbols-outlined text-sm">arrow_forward</span>
+                  </button>
+              </div>
+
+          </div>
       </div>
     </div>
   );

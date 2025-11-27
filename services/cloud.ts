@@ -1,8 +1,9 @@
 
-import { Course, User } from "../types";
+
+import { Course, User, UserProfile, Semester } from "../types";
 import * as firebaseApp from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, query, where, getDocs, setDoc, doc, getDoc, deleteDoc } from 'firebase/firestore';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getFirestore, collection, query, where, getDocs, setDoc, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 
 const firebaseConfig = {
   apiKey: "AIzaSyCdGyLPG47pb4p_T6SWP26hz6fcw-1563c",
@@ -31,14 +32,13 @@ try {
     console.error("Firebase Initialization Error:", e);
 }
 
-// Simple string hash to detect similar syllabus content
 export const generateSyllabusHash = (text: string): string => {
-  const clean = text.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 500); // First 500 chars normalized
+  const clean = text.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 500); 
   let hash = 0;
   for (let i = 0; i < clean.length; i++) {
     const char = clean.charCodeAt(i);
     hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32bit integer
+    hash = hash & hash; 
   }
   return Math.abs(hash).toString(16);
 };
@@ -53,14 +53,17 @@ export const CloudService = {
         const result = await signInWithPopup(auth, provider);
         const fbUser = result.user;
         
-        // Check if user exists in DB to get their Tier
+        // Check if user exists in DB to get their Tier and Profile
         let tier: 'FREE' | 'PRO' = 'FREE';
+        let profile: UserProfile | undefined = undefined;
+
         if (db) {
             const userRef = doc(db, "users", fbUser.uid);
             const userSnap = await getDoc(userRef);
             if (userSnap.exists()) {
                 const userData = userSnap.data();
                 tier = userData.tier || 'FREE';
+                profile = userData.profile;
             } else {
                 // Create new user record
                 await setDoc(userRef, {
@@ -76,12 +79,89 @@ export const CloudService = {
             name: fbUser.displayName || 'Anonymous',
             email: fbUser.email || '',
             avatarUrl: fbUser.photoURL || '',
-            tier: tier
+            tier: tier,
+            profile: profile
         };
     } catch (error: any) {
         console.error("Sign In Error:", error);
         throw error;
     }
+  },
+
+  signUpWithEmail: async (email: string, pass: string, name: string): Promise<User> => {
+      if (!auth) throw new Error("Firebase not initialized");
+      try {
+          const result = await createUserWithEmailAndPassword(auth, email, pass);
+          const fbUser = result.user;
+          
+          await updateProfile(fbUser, { displayName: name });
+          
+          if (db) {
+             const userRef = doc(db, "users", fbUser.uid);
+             await setDoc(userRef, {
+                email: fbUser.email,
+                tier: 'FREE',
+                profile: { role: 'Student', learningStyle: 'Visual' },
+                createdAt: Date.now()
+             });
+          }
+          
+          return {
+             id: fbUser.uid,
+             name: name,
+             email: fbUser.email || '',
+             avatarUrl: '',
+             tier: 'FREE',
+             profile: { role: 'Student', learningStyle: 'Visual' } as any
+          };
+      } catch (error: any) {
+          console.error("Sign Up Error", error);
+          throw error;
+      }
+  },
+
+  signInWithEmail: async (email: string, pass: string): Promise<User> => {
+      if (!auth) throw new Error("Firebase not initialized");
+      try {
+          const result = await signInWithEmailAndPassword(auth, email, pass);
+          const fbUser = result.user;
+          
+          let tier: 'FREE' | 'PRO' = 'FREE';
+          let profile: UserProfile | undefined = undefined;
+
+          if (db) {
+             const userRef = doc(db, "users", fbUser.uid);
+             const userSnap = await getDoc(userRef);
+             if (userSnap.exists()) {
+                 const d = userSnap.data();
+                 tier = d.tier || 'FREE';
+                 profile = d.profile;
+             }
+          }
+
+          return {
+              id: fbUser.uid,
+              name: fbUser.displayName || 'User',
+              email: fbUser.email || '',
+              avatarUrl: fbUser.photoURL || '',
+              tier: tier,
+              profile: profile
+          };
+      } catch (error: any) {
+          console.error("Sign In Error", error);
+          throw error;
+      }
+  },
+
+  updateUserProfile: async (userId: string, profile: UserProfile): Promise<void> => {
+      if (!db) return;
+      try {
+          const userRef = doc(db, "users", userId);
+          await updateDoc(userRef, { profile: profile });
+      } catch (e) {
+          console.error("Failed to update profile", e);
+          throw e;
+      }
   },
 
   signOut: async () => {
@@ -92,7 +172,6 @@ export const CloudService = {
 
   subscribeToAuthChanges: (callback: (user: User | null) => void): () => void => {
     if (!auth) {
-        // If auth isn't initialized, just return a dummy unsubscribe and call with null
         setTimeout(() => callback(null), 0);
         return () => {};
     }
@@ -101,17 +180,19 @@ export const CloudService = {
         if (!fbUser) {
             callback(null);
         } else {
-             // Check Firestore for user details (like Tier)
              let tier: 'FREE' | 'PRO' = 'FREE';
+             let profile: UserProfile | undefined = undefined;
+             
              if (db) {
                  try {
                     const userRef = doc(db, "users", fbUser.uid);
                     const userSnap = await getDoc(userRef);
                     if (userSnap.exists()) {
                         tier = userSnap.data().tier || 'FREE';
+                        profile = userSnap.data().profile;
                     }
                  } catch(e) {
-                     console.error("Error fetching user tier", e);
+                     console.error("Error fetching user data", e);
                  }
              }
 
@@ -120,13 +201,13 @@ export const CloudService = {
                 name: fbUser.displayName || 'Anonymous',
                 email: fbUser.email || '',
                 avatarUrl: fbUser.photoURL || '',
-                tier: tier
+                tier: tier,
+                profile: profile
             });
         }
     });
   },
 
-  // Simulates a payment gateway callback
   upgradeUserToPro: async (userId: string): Promise<void> => {
       if (!db) return;
       try {
@@ -136,24 +217,14 @@ export const CloudService = {
       }
   },
 
-  // --- CLOUD SYNC FOR USER COURSES ---
-
   saveUserCourse: async (userId: string, course: Course) => {
       if (!db) return;
       try {
-          // Clone and Sanitize
-          // Firestore has a 1MB limit. Base64 Videos/Images are too big.
-          // We strip them out for Cloud Sync. 
-          // On a new device, the app sees "Ready" but missing assets, and can offer to regenerate.
           const courseToSave = JSON.parse(JSON.stringify(course));
-          
           courseToSave.reels = courseToSave.reels.map((reel: any) => {
               const { videoUri, audioUri, imageUri, ...rest } = reel;
-              // We only sync structure, script, prompts, and progress.
-              // Heavy media stays local (IndexedDB) or needs Firebase Storage (Blob) integration.
               return rest;
           });
-
           const courseRef = doc(db, "users", userId, "courses", course.id);
           await setDoc(courseRef, courseToSave);
       } catch (e) {
@@ -177,18 +248,75 @@ export const CloudService = {
       }
   },
 
+  // SOFT DELETE
   deleteUserCourse: async (userId: string, courseId: string) => {
+      if (!db) return;
+      try {
+          const courseRef = doc(db, "users", userId, "courses", courseId);
+          await updateDoc(courseRef, { deletedAt: Date.now() });
+      } catch (e) {
+          console.error("Failed to soft delete cloud course", e);
+      }
+  },
+
+  // RESTORE
+  restoreUserCourse: async (userId: string, courseId: string) => {
+      if (!db) return;
+      try {
+          const courseRef = doc(db, "users", userId, "courses", courseId);
+          await updateDoc(courseRef, { deletedAt: deleteField() });
+      } catch (e) {
+          console.error("Failed to restore cloud course", e);
+      }
+  },
+
+  // PERMANENT DELETE
+  permanentlyDeleteUserCourse: async (userId: string, courseId: string) => {
       if (!db) return;
       try {
           await deleteDoc(doc(db, "users", userId, "courses", courseId));
       } catch (e) {
-          console.error("Failed to delete cloud course", e);
+          console.error("Failed to permanently delete cloud course", e);
       }
   },
 
-  // --- PUBLIC LIBRARY ---
+  // --- SEMESTER CLOUD SYNC ---
+  getUserSemesters: async (userId: string): Promise<Semester[]> => {
+      if (!db) return [];
+      try {
+          const q = query(collection(db, "users", userId, "semesters"));
+          const snapshot = await getDocs(q);
+          const semesters: Semester[] = [];
+          snapshot.forEach(doc => {
+              semesters.push(doc.data() as Semester);
+          });
+          return semesters.sort((a, b) => b.createdAt - a.createdAt);
+      } catch (e) {
+          console.error("Failed to fetch cloud semesters:", e);
+          return [];
+      }
+  },
 
-  // Check if a course with this syllabus already exists
+  saveUserSemester: async (userId: string, semester: Semester) => {
+      if (!db) return;
+      try {
+          const semesterRef = doc(db, "users", userId, "semesters", semester.id);
+          await setDoc(semesterRef, semester);
+      } catch (e) {
+          console.error("Failed to sync semester to cloud:", e);
+      }
+  },
+
+  deleteUserSemester: async (userId: string, semesterId: string) => {
+      if (!db) return;
+      try {
+          await deleteDoc(doc(db, "users", userId, "semesters", semesterId));
+      } catch (e) {
+          console.error("Failed to delete cloud semester", e);
+      }
+  },
+  // ---------------------------
+
   findPublicCourseMatch: async (syllabusHash: string): Promise<Course | null> => {
     return CloudService.getPublicCourseByHash(syllabusHash);
   },
@@ -196,19 +324,12 @@ export const CloudService = {
   getPublicCourseByHash: async (syllabusHash: string): Promise<Course | null> => {
     if (!db) return null;
     try {
-        // First try fetching directly by ID if syllabusHash is used as document key
         const docRef = doc(db, "public_courses", syllabusHash);
         const docSnap = await getDoc(docRef);
-        
         if (docSnap.exists()) {
              return docSnap.data() as Course;
         }
-
-        // Fallback: Query by field if key isn't the hash
-        const q = query(
-            collection(db, "public_courses"), 
-            where("syllabusHash", "==", syllabusHash)
-        );
+        const q = query(collection(db, "public_courses"), where("syllabusHash", "==", syllabusHash));
         const querySnapshot = await getDocs(q);
         if (!querySnapshot.empty) {
             return querySnapshot.docs[0].data() as Course;
@@ -220,37 +341,27 @@ export const CloudService = {
     }
   },
 
-  // Upload a finished course to the public cloud
   publishCourseToLibrary: async (course: Course) => {
     if (!db) return;
     try {
-        // We store it in a 'public_courses' collection
-        // We use syllabusHash as ID to ensure uniqueness/deduplication
         if (course.syllabusHash) {
-             // Deep sanitize to remove undefined values which Firestore hates
              const cleanCourse = JSON.parse(JSON.stringify(course));
-             
-             // Strip heavy assets for public library too to save bandwidth
              cleanCourse.reels = cleanCourse.reels.map((reel: any) => {
                  const { videoUri, audioUri, imageUri, ...rest } = reel;
                  return rest;
              });
-             
              await setDoc(doc(db, "public_courses", course.syllabusHash), {
                  ...cleanCourse,
                  isPublic: true,
-                 ownerId: 'public_library' // Anonymize ownership for the public index
+                 ownerId: 'public_library'
              });
-             console.log("Course published to Public Library");
         }
     } catch (e) {
         console.warn("Failed to publish course", e);
     }
   },
 
-  // Send email notification (Simulation - Requires backend Cloud Function usually)
   sendCompletionEmail: async (email: string, courseTitle: string) => {
-    // In a real app, this would trigger a Firebase Cloud Function or EmailJS
     console.log(`[CLOUD FUNCTION TRIGGER] Send email to ${email}: Your course "${courseTitle}" is ready.`);
   }
 };
