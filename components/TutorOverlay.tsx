@@ -1,4 +1,6 @@
 
+
+
 import React, { useState, useEffect, useRef } from 'react';
 import { ReelData, ChatMessage } from '../types';
 import { chatWithTutor } from '../services/geminiService';
@@ -10,7 +12,7 @@ interface TutorOverlayProps {
 
 const TutorOverlay: React.FC<TutorOverlayProps> = ({ activeReel, onClose }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { id: 'welcome', role: 'model', text: `Hi! I'm your AI Tutor. I can answer questions about "${activeReel.title}". What's confusing you?` }
+    { id: 'welcome', role: 'model', text: `Hi! I'm your Personal Tutor. I can answer questions about "${activeReel.title}". What's confusing you?` }
   ]);
   const [input, setInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -59,7 +61,7 @@ const TutorOverlay: React.FC<TutorOverlayProps> = ({ activeReel, onClose }) => {
                 </div>
                 <div>
                     <h3 className="text-sm font-bold text-stone-900 dark:text-white">Orbis Tutor</h3>
-                    <p className="text-[10px] text-stone-500 dark:text-stone-400 truncate max-w-[150px]">{activeReel.title}</p>
+                    <p className="text--[10px] text-stone-500 dark:text-stone-400 truncate max-w-[150px]">{activeReel.title}</p>
                 </div>
             </div>
             <button onClick={onClose} className="p-1 hover:bg-stone-200 dark:hover:bg-stone-700 rounded-full transition-colors">

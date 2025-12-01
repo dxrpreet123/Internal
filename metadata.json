@@ -1,5 +1,7 @@
 {
   "name": "Orbis",
   "description": "Smart comprehensive learning companion.",
-  "requestFramePermissions": []
+  "requestFramePermissions": [
+    "microphone"
+  ]
 }

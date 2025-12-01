@@ -1,114 +1,233 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { User } from '../types';
 
 interface PricingViewProps {
   onBack: () => void;
-  onGetStarted: () => void;
+  onGetStarted: () => void; // Used for Auth redirection
+  onUpgradeSuccess: () => void;
   onToggleTheme: () => void;
   currentTheme: 'light' | 'dark';
+  user: User | null;
 }
 
-const PricingView: React.FC<PricingViewProps> = ({ onBack, onGetStarted, onToggleTheme, currentTheme }) => {
-  return (
-    <div className="fixed inset-0 w-full h-[100dvh] bg-[#fafaf9] dark:bg-[#0c0a09] font-sans text-stone-900 dark:text-white transition-colors duration-500 flex flex-col z-50">
-      
-       {/* Seamless Grid Pattern */}
-       <div className="absolute inset-0 pointer-events-none z-0 opacity-[0.03] dark:opacity-[0.05]" 
-           style={{ 
-             backgroundImage: `linear-gradient(to right, #808080 1px, transparent 1px), linear-gradient(to bottom, #808080 1px, transparent 1px)`, 
-             backgroundSize: '40px 40px' 
-           }}>
-       </div>
+const PRICING_CONFIG = {
+    USD: {
+        symbol: '$',
+        monthly: 9,
+        yearly: 89,
+        free: 0
+    },
+    INR: {
+        symbol: '₹',
+        monthly: 359,
+        yearly: 3599,
+        free: 0
+    }
+};
 
-      {/* Minimal Header */}
-      <div className="w-full p-6 md:p-8 flex justify-end items-center z-50 shrink-0 relative">
+const PricingView: React.FC<PricingViewProps> = ({ onBack, onGetStarted, onUpgradeSuccess, onToggleTheme, currentTheme, user }) => {
+  const [billingCycle, setBillingCycle] = useState<'MONTHLY' | 'YEARLY'>('MONTHLY');
+  const [currency, setCurrency] = useState<'USD' | 'INR'>('USD');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+      // Simple heuristic to detect India based on Timezone
+      try {
+          const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+          if (tz.includes('Calcutta') || tz.includes('Kolkata') || tz.includes('India')) {
+              setCurrency('INR');
+          }
+      } catch (e) {
+          console.warn("Could not detect timezone for currency");
+      }
+  }, []);
+
+  const prices = PRICING_CONFIG[currency];
+
+  const handleUpgrade = () => {
+      // If user is not logged in, redirect to auth
+      if (!user || user.id === 'guest') {
+          onGetStarted();
+          return;
+      }
+
+      if (currency === 'INR') {
+          handleRazorpayPayment();
+      } else {
+          // Placeholder for Stripe/International
+          alert("International payments coming soon. Switch to INR for Razorpay demo.");
+      }
+  };
+
+  const handleRazorpayPayment = () => {
+      setLoading(true);
+      const amount = billingCycle === 'MONTHLY' ? prices.monthly * 100 : prices.yearly * 100;
+      
+      const options = {
+          key: "rzp_test_1DP5mmOlF5G5ag", // Standard Test Key
+          amount: amount, 
+          currency: "INR",
+          name: "Orbis Scholar",
+          description: `${billingCycle === 'MONTHLY' ? 'Monthly' : 'Yearly'} Subscription`,
+          image: "https://res.cloudinary.com/dnbwvwaoe/image/upload/v1763891408/social_zefj9u.png",
+          handler: function (response: any) {
+              console.log("Payment Success:", response);
+              // In production, verify payment signature on backend here
+              onUpgradeSuccess();
+              setLoading(false);
+          },
+          prefill: {
+              name: user?.name || "",
+              email: user?.email || "",
+              contact: ""
+          },
+          theme: {
+              color: "#ea580c"
+          },
+          modal: {
+              ondismiss: function() {
+                  setLoading(false);
+              }
+          }
+      };
+
+      try {
+          // @ts-ignore
+          const rzp = new window.Razorpay(options);
+          rzp.open();
+      } catch (e) {
+          console.error("Razorpay Error", e);
+          alert("Failed to load payment gateway. Check connection.");
+          setLoading(false);
+      }
+  };
+
+  return (
+    <div className="fixed inset-0 w-full h-[100dvh] bg-white/95 dark:bg-black/95 backdrop-blur-3xl font-sans text-[#1D1D1F] dark:text-[#F5F5F7] z-50 overflow-y-auto">
+      
+      {/* Header */}
+      <div className="sticky top-0 w-full p-6 flex justify-between items-center z-50 pointer-events-none">
+          {/* Currency Toggle */}
+          <div className="pointer-events-auto bg-stone-100 dark:bg-stone-900 rounded-full p-1 flex items-center shadow-sm border border-stone-200 dark:border-stone-800">
+              <button 
+                  onClick={() => setCurrency('USD')}
+                  className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${currency === 'USD' ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-sm' : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'}`}
+              >
+                  USD
+              </button>
+              <button 
+                  onClick={() => setCurrency('INR')}
+                  className={`px-4 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${currency === 'INR' ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-sm' : 'text-stone-400 hover:text-stone-600 dark:hover:text-stone-300'}`}
+              >
+                  INR
+              </button>
+          </div>
+
           <button 
               onClick={onBack} 
-              className="group flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors"
+              className="pointer-events-auto w-10 h-10 rounded-full bg-stone-200 dark:bg-stone-800 flex items-center justify-center hover:scale-110 transition-transform shadow-md"
           >
-              <span>Close</span>
-              <span className="material-symbols-outlined text-lg group-hover:rotate-90 transition-transform">close</span>
+              <span className="material-symbols-rounded">close</span>
           </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar relative z-10">
-          <div className="max-w-6xl mx-auto px-6 py-8 md:py-20 animate-dreamy-in pb-20">
-            
-            <div className="mb-12 md:mb-20">
-                <h1 className="font-display text-4xl md:text-8xl font-bold mb-4 md:mb-6 tracking-tighter leading-none">
-                    Invest in <br/> <span className="text-stone-400 dark:text-stone-600">compound growth.</span>
-                </h1>
-                <p className="text-base md:text-xl text-stone-500 dark:text-stone-400 max-w-xl leading-relaxed">
-                    Select a plan that fits your learning velocity.
-                </p>
-            </div>
+      <div className="max-w-5xl mx-auto px-6 pb-24 pt-4 animate-fade-in">
+          
+          <div className="text-center mb-16">
+              <span className="text-orange-600 font-bold uppercase tracking-widest text-xs mb-4 block">Plans</span>
+              <h1 className="text-5xl md:text-7xl font-bold font-display tracking-tight mb-6">
+                  Invest in your mind.
+              </h1>
+              <p className="text-xl text-stone-500 max-w-xl mx-auto mb-10">
+                  Unlock the full power of the Smart Academic Dashboard.
+              </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-24 items-start">
-                
-                {/* Free Plan */}
-                <div className="flex flex-col border-t border-stone-200 dark:border-stone-800 pt-8 group">
-                    <div className="flex justify-between items-baseline mb-4">
-                        <h2 className="text-2xl font-bold font-display">Basic</h2>
-                    </div>
-                    <p className="text-sm text-stone-500 mb-8 h-10">Essential tools for casual learners.</p>
-                    
-                    <ul className="space-y-4 mb-12 flex-1">
-                        <li className="flex items-center gap-3 text-sm text-stone-600 dark:text-stone-400">
-                            <span className="w-1.5 h-1.5 bg-stone-300 rounded-full"></span> 3 Courses / month
-                        </li>
-                        <li className="flex items-center gap-3 text-sm text-stone-600 dark:text-stone-400">
-                            <span className="w-1.5 h-1.5 bg-stone-300 rounded-full"></span> Standard Generation
-                        </li>
-                        <li className="flex items-center gap-3 text-sm text-stone-600 dark:text-stone-400">
-                            <span className="w-1.5 h-1.5 bg-stone-300 rounded-full"></span> Web Access
-                        </li>
-                    </ul>
-
-                    <div className="w-full py-4 text-stone-400 dark:text-stone-600 font-bold uppercase tracking-widest text-xs border-t border-transparent cursor-default">
-                        Already Free
-                    </div>
-                </div>
-
-                {/* Pro Plan */}
-                <div className="flex flex-col border-t-2 border-orange-600 pt-8 relative">
-                    <div className="absolute top-0 right-0 -mt-3 bg-orange-600 text-white text-[10px] font-bold px-2 py-0.5 uppercase tracking-widest">Selected</div>
-                    
-                    <div className="flex justify-between items-baseline mb-4">
-                        <h2 className="text-2xl font-bold font-display">Pro</h2>
-                        <span className="text-3xl font-bold text-orange-600">$9<span className="text-base font-normal text-stone-400">/mo</span></span>
-                    </div>
-                    <p className="text-sm text-stone-500 mb-8 h-10">Unlimited power for serious students.</p>
-                    
-                    <ul className="space-y-4 mb-12 flex-1">
-                         <li className="flex items-center gap-3 text-sm text-stone-900 dark:text-white font-medium">
-                            <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> Unlimited Courses
-                        </li>
-                        <li className="flex items-center gap-3 text-sm text-stone-900 dark:text-white font-medium">
-                            <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> Priority 4K Video
-                        </li>
-                        <li className="flex items-center gap-3 text-sm text-stone-900 dark:text-white font-medium">
-                            <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> Deep-Dive Mode (30+ Reels)
-                        </li>
-                        <li className="flex items-center gap-3 text-sm text-stone-900 dark:text-white font-medium">
-                            <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> Advanced AI Tutor
-                        </li>
-                        <li className="flex items-center gap-3 text-sm text-stone-900 dark:text-white font-medium">
-                            <span className="w-1.5 h-1.5 bg-orange-600 rounded-full"></span> PDF Exports
-                        </li>
-                    </ul>
-
-                    <button onClick={onGetStarted} className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase tracking-widest text-xs transition-all duration-300 shadow-lg hover:shadow-xl">
-                        Upgrade
-                    </button>
-                </div>
-
-            </div>
-            
-            <div className="mt-20 pt-10 border-t border-stone-100 dark:border-stone-800 text-center">
-                 <p className="text-xs text-stone-400">Prices in USD. Cancel anytime.</p>
-            </div>
+              {/* Billing Cycle Toggle */}
+              <div className="inline-flex bg-stone-100 dark:bg-stone-900 p-1 rounded-full relative border border-stone-200 dark:border-stone-800">
+                  <button 
+                      onClick={() => setBillingCycle('MONTHLY')}
+                      className={`px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${billingCycle === 'MONTHLY' ? 'bg-white dark:bg-stone-800 shadow-md text-stone-900 dark:text-white' : 'text-stone-500'}`}
+                  >
+                      Monthly
+                  </button>
+                  <button 
+                      onClick={() => setBillingCycle('YEARLY')}
+                      className={`px-8 py-3 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${billingCycle === 'YEARLY' ? 'bg-white dark:bg-stone-800 shadow-md text-stone-900 dark:text-white' : 'text-stone-500'}`}
+                  >
+                      Yearly <span className="text-orange-600 ml-1">-20%</span>
+                  </button>
+              </div>
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+              {/* Free */}
+              <div className="p-10 rounded-[2.5rem] bg-white dark:bg-[#111] border border-stone-200 dark:border-stone-800 flex flex-col relative overflow-hidden">
+                  <div className="mb-8">
+                      <h3 className="text-2xl font-bold mb-2">Starter</h3>
+                      <div className="text-5xl font-bold font-display tracking-tight">
+                          {prices.symbol}{prices.free}
+                      </div>
+                  </div>
+                  <ul className="space-y-4 mb-8 flex-1">
+                      <li className="flex gap-3 text-sm font-medium text-stone-600 dark:text-stone-400"><span className="text-stone-900 dark:text-white font-bold">3</span> Courses per Month</li>
+                      <li className="flex gap-3 text-sm font-medium text-stone-600 dark:text-stone-400"><span className="text-stone-900 dark:text-white font-bold">Basic</span> Semester Planning</li>
+                      <li className="flex gap-3 text-sm font-medium text-stone-600 dark:text-stone-400">Standard Definition Video</li>
+                  </ul>
+                  <button className="w-full py-4 border border-stone-200 dark:border-stone-800 rounded-full font-bold uppercase tracking-widest text-xs hover:bg-stone-50 dark:hover:bg-stone-900 transition-colors">
+                      {user?.tier === 'FREE' ? 'Current Plan' : 'Downgrade'}
+                  </button>
+              </div>
+
+              {/* Pro */}
+              <div className="p-10 rounded-[2.5rem] bg-stone-900 dark:bg-white text-white dark:text-black shadow-2xl flex flex-col relative overflow-hidden transform hover:-translate-y-2 transition-transform duration-500">
+                  <div className="absolute top-0 right-0 bg-gradient-to-bl from-orange-500 to-red-600 text-white text-[10px] font-bold px-6 py-2 rounded-bl-2xl uppercase tracking-widest">
+                      Best Value
+                  </div>
+                  <div className="mb-8">
+                      <h3 className="text-2xl font-bold mb-2">Scholar</h3>
+                      <div className="text-5xl font-bold font-display tracking-tight">
+                          {billingCycle === 'MONTHLY' 
+                            ? `${prices.symbol}${prices.monthly}` 
+                            : `${prices.symbol}${prices.yearly}`
+                          }
+                          <span className="text-xl text-stone-500 font-normal ml-1">
+                              /{billingCycle === 'MONTHLY' ? 'mo' : 'yr'}
+                          </span>
+                      </div>
+                  </div>
+                  <ul className="space-y-4 mb-8 flex-1">
+                      <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">Unlimited</span> Courses</li>
+                      <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">AI</span> Grade Forecasting</li>
+                      <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">4K</span> Video Rendering</li>
+                      <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">Exam Cram</span> Mode</li>
+                  </ul>
+                  
+                  {user?.tier === 'PRO' ? (
+                      <button disabled className="w-full py-4 bg-green-500 text-white rounded-full font-bold uppercase tracking-widest text-xs cursor-default">
+                          Active Plan
+                      </button>
+                  ) : (
+                      <button 
+                          onClick={handleUpgrade}
+                          disabled={loading}
+                          className="w-full py-4 bg-white dark:bg-black text-black dark:text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                          {loading && <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>}
+                          {loading ? 'Processing...' : 'Upgrade Now'}
+                      </button>
+                  )}
+              </div>
+          </div>
+
+          <div className="mt-16 text-center">
+              <p className="text-xs text-stone-400 max-w-lg mx-auto leading-relaxed">
+                  Prices in {currency}. Local taxes may apply. Cancel anytime.
+                  <br/>
+                  <span className="opacity-50">Secure payment processing via {currency === 'INR' ? 'Razorpay' : 'Stripe'}.</span>
+              </p>
+          </div>
+
       </div>
     </div>
   );

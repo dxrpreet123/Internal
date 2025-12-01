@@ -1,4 +1,8 @@
 
+
+
+
+
 import React from 'react';
 import { AppState } from '../types';
 
@@ -96,19 +100,19 @@ const SitemapView: React.FC<SitemapViewProps> = ({ onNavigate, onBack }) => {
                   <h3 className="text-xs font-bold text-orange-600 uppercase tracking-widest mb-6">Resources</h3>
                   <ul className="space-y-4">
                       <li>
-                          <span className="text-xl md:text-2xl font-bold font-display text-stone-400 cursor-not-allowed">
-                              Help Center
-                          </span>
-                      </li>
-                      <li>
-                          <span className="text-xl md:text-2xl font-bold font-display text-stone-400 cursor-not-allowed">
-                              Privacy Policy
-                          </span>
-                      </li>
-                      <li>
-                          <span className="text-xl md:text-2xl font-bold font-display text-stone-400 cursor-not-allowed">
+                          <button onClick={() => onNavigate(AppState.TERMS)} className="text-2xl md:text-3xl font-bold font-display text-stone-900 dark:text-white hover:text-orange-600 transition-colors">
                               Terms of Service
-                          </span>
+                          </button>
+                      </li>
+                      <li>
+                          <button onClick={() => onNavigate(AppState.PRIVACY)} className="text-2xl md:text-3xl font-bold font-display text-stone-900 dark:text-white hover:text-orange-600 transition-colors">
+                              Privacy Policy
+                          </button>
+                      </li>
+                      <li>
+                          <button onClick={() => onNavigate(AppState.REFUND)} className="text-2xl md:text-3xl font-bold font-display text-stone-900 dark:text-white hover:text-orange-600 transition-colors">
+                              Refund Policy
+                          </button>
                       </li>
                   </ul>
               </div>

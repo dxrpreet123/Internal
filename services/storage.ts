@@ -1,10 +1,14 @@
 
-import { Course, ReelData, Semester } from "../types";
+
+import { Course, ReelData, Semester, TimeTableDay, Assignment, DailyLog } from "../types";
 
 const DB_NAME = 'OrbisDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3; // Bumped version for new stores
 const COURSE_STORE = 'courses';
 const SEMESTER_STORE = 'semesters';
+const TIMETABLE_STORE = 'timetable';
+const ASSIGNMENT_STORE = 'assignments';
+const DAILYLOG_STORE = 'dailylogs';
 
 const openDB = (): Promise<IDBDatabase> => {
   return new Promise((resolve, reject) => {
@@ -19,6 +23,15 @@ const openDB = (): Promise<IDBDatabase> => {
       }
       if (!db.objectStoreNames.contains(SEMESTER_STORE)) {
         db.createObjectStore(SEMESTER_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(TIMETABLE_STORE)) {
+        db.createObjectStore(TIMETABLE_STORE, { keyPath: 'day' });
+      }
+      if (!db.objectStoreNames.contains(ASSIGNMENT_STORE)) {
+        db.createObjectStore(ASSIGNMENT_STORE, { keyPath: 'id' });
+      }
+      if (!db.objectStoreNames.contains(DAILYLOG_STORE)) {
+        db.createObjectStore(DAILYLOG_STORE, { keyPath: 'date' });
       }
     };
 
@@ -157,4 +170,86 @@ export const deleteSemester = async (id: string): Promise<void> => {
             tx.oncomplete = () => resolve();
         });
     } catch (e) { console.error(e); }
+};
+
+// --- TIMETABLE FUNCTIONS ---
+
+export const saveTimetableDay = async (daySchedule: TimeTableDay): Promise<void> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(TIMETABLE_STORE, 'readwrite');
+        const store = tx.objectStore(TIMETABLE_STORE);
+        store.put(daySchedule);
+        return new Promise((resolve) => { tx.oncomplete = () => resolve(); });
+    } catch (e) { console.error(e); }
+};
+
+export const getTimetable = async (): Promise<TimeTableDay[]> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(TIMETABLE_STORE, 'readonly');
+        const store = tx.objectStore(TIMETABLE_STORE);
+        const request = store.getAll();
+        return new Promise((resolve) => {
+            request.onsuccess = () => resolve(request.result || []);
+        });
+    } catch (e) { return []; }
+};
+
+// --- ASSIGNMENT FUNCTIONS ---
+
+export const saveAssignment = async (assignment: Assignment): Promise<void> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(ASSIGNMENT_STORE, 'readwrite');
+        const store = tx.objectStore(ASSIGNMENT_STORE);
+        store.put(assignment);
+        return new Promise((resolve) => { tx.oncomplete = () => resolve(); });
+    } catch (e) { console.error(e); }
+};
+
+export const getAllAssignments = async (): Promise<Assignment[]> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(ASSIGNMENT_STORE, 'readonly');
+        const store = tx.objectStore(ASSIGNMENT_STORE);
+        const request = store.getAll();
+        return new Promise((resolve) => {
+            request.onsuccess = () => resolve(request.result || []);
+        });
+    } catch (e) { return []; }
+};
+
+export const deleteAssignment = async (id: string): Promise<void> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(ASSIGNMENT_STORE, 'readwrite');
+        const store = tx.objectStore(ASSIGNMENT_STORE);
+        store.delete(id);
+        return new Promise((resolve) => { tx.oncomplete = () => resolve(); });
+    } catch (e) { console.error(e); }
+};
+
+// --- DAILY LOG FUNCTIONS ---
+
+export const saveDailyLog = async (log: DailyLog): Promise<void> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(DAILYLOG_STORE, 'readwrite');
+        const store = tx.objectStore(DAILYLOG_STORE);
+        store.put(log);
+        return new Promise((resolve) => { tx.oncomplete = () => resolve(); });
+    } catch (e) { console.error(e); }
+};
+
+export const getDailyLog = async (date: string): Promise<DailyLog | undefined> => {
+    try {
+        const db = await openDB();
+        const tx = db.transaction(DAILYLOG_STORE, 'readonly');
+        const store = tx.objectStore(DAILYLOG_STORE);
+        const request = store.get(date);
+        return new Promise((resolve) => {
+            request.onsuccess = () => resolve(request.result);
+        });
+    } catch (e) { return undefined; }
 };

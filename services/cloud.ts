@@ -2,7 +2,7 @@
 
 import { Course, User, UserProfile, Semester } from "../types";
 import * as firebaseApp from 'firebase/app';
-import { getAuth, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, signInWithPopup, GoogleAuthProvider, signOut as firebaseSignOut, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, updateProfile, signInWithPhoneNumber, RecaptchaVerifier, ConfirmationResult } from 'firebase/auth';
 import { getFirestore, collection, query, where, getDocs, setDoc, doc, getDoc, deleteDoc, updateDoc, deleteField } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -153,6 +153,53 @@ export const CloudService = {
       }
   },
 
+  // --- PHONE AUTH ---
+  setupRecaptcha: (elementId: string) => {
+      if (!auth) throw new Error("Firebase not initialized");
+      const verifier = new RecaptchaVerifier(auth, elementId, {
+          'size': 'invisible',
+      });
+      return verifier;
+  },
+
+  signInWithPhone: async (phoneNumber: string, verifier: any): Promise<ConfirmationResult> => {
+      if (!auth) throw new Error("Firebase not initialized");
+      return await signInWithPhoneNumber(auth, phoneNumber, verifier);
+  },
+
+  verifyPhoneOTP: async (confirmationResult: ConfirmationResult, otp: string): Promise<User> => {
+       const result = await confirmationResult.confirm(otp);
+       const fbUser = result.user;
+       
+       let tier: 'FREE' | 'PRO' = 'FREE';
+       let profile: UserProfile | undefined = undefined;
+
+       if (db) {
+            const userRef = doc(db, "users", fbUser.uid);
+            const userSnap = await getDoc(userRef);
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                tier = userData.tier || 'FREE';
+                profile = userData.profile;
+            } else {
+                await setDoc(userRef, {
+                    phoneNumber: fbUser.phoneNumber,
+                    tier: 'FREE',
+                    createdAt: Date.now()
+                });
+            }
+       }
+
+       return {
+            id: fbUser.uid,
+            name: fbUser.displayName || fbUser.phoneNumber || 'Mobile User',
+            email: fbUser.email || '',
+            avatarUrl: fbUser.photoURL || '',
+            tier: tier,
+            profile: profile
+       };
+  },
+
   updateUserProfile: async (userId: string, profile: UserProfile): Promise<void> => {
       if (!db) return;
       try {
@@ -198,7 +245,7 @@ export const CloudService = {
 
              callback({
                 id: fbUser.uid,
-                name: fbUser.displayName || 'Anonymous',
+                name: fbUser.displayName || fbUser.phoneNumber || 'User',
                 email: fbUser.email || '',
                 avatarUrl: fbUser.photoURL || '',
                 tier: tier,

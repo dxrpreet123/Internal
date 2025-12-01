@@ -1,11 +1,17 @@
 
-import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
-import { ReelData, AppState, CourseRequest, Course, User, SyllabusAnalysis, ConsultationAnswers, EducationLevel, Semester, SemesterUnit, SemesterTopic } from './types';
-import { generateCourseOutline, generateAudio, triggerVeoGeneration, pollVeoOperation, generateImagenImage, checkApiKey, promptForKey, analyzeSyllabus, generateRemedialCurriculum, structureSemester } from './services/geminiService';
-import { getAllCourses, saveCourse as saveLocalCourse, deleteCourse as deleteLocalCourse, saveSemester as saveLocalSemester, getAllSemesters, deleteSemester as deleteLocalSemester } from './services/storage';
-import { CloudService } from './services/cloud';
 
-// Lazy Load Components for Code Splitting
+
+
+
+import React, { useState, useEffect, useRef, Suspense, lazy } from 'react';
+import { ReelData, AppState, CourseRequest, Course, User, SyllabusAnalysis, ConsultationAnswers, EducationLevel, Semester, SemesterUnit, SemesterTopic, UserProfile, TimeTableDay, ClassSession, Assignment } from './types';
+import { generateCourseOutline, generateAudio, triggerVeoGeneration, pollVeoOperation, generateImagenImage, checkApiKey, promptForKey, analyzeSyllabus, generateRemedialCurriculum, structureSemester, architectSemester } from './services/geminiService';
+import { getAllCourses, saveCourse as saveLocalCourse, deleteCourse as deleteLocalCourse, saveSemester as saveLocalSemester, getAllSemesters, deleteSemester as deleteLocalSemester, saveTimetableDay, getTimetable, getAllAssignments, saveAssignment } from './services/storage';
+import { CloudService } from './services/cloud';
+import { getSampleCourse } from './services/sampleData';
+import ErrorBoundary from './components/ErrorBoundary';
+
+// Lazy Load Components
 const LandingView = lazy(() => import('./components/LandingView'));
 const IngestView = lazy(() => import('./components/IngestView'));
 const AnalysisView = lazy(() => import('./components/AnalysisView'));
@@ -17,7 +23,15 @@ const PricingView = lazy(() => import('./components/PricingView'));
 const ContactView = lazy(() => import('./components/ContactView'));
 const ClassroomView = lazy(() => import('./components/ClassroomView'));
 const ExamView = lazy(() => import('./components/ExamView'));
+const OnboardingView = lazy(() => import('./components/OnboardingView'));
+const TimetableView = lazy(() => import('./components/TimetableView')); 
+const AssignmentView = lazy(() => import('./components/AssignmentView')); 
+const ProfileView = lazy(() => import('./components/ProfileView'));
+const TutorView = lazy(() => import('./components/TutorView'));
 const SitemapView = lazy(() => import('./components/SitemapView'));
+const TermsView = lazy(() => import('./components/TermsView'));
+const PrivacyView = lazy(() => import('./components/PrivacyView'));
+const RefundView = lazy(() => import('./components/RefundView'));
 
 const LoadingFallback = () => (
   <div className="h-[100dvh] w-full bg-[#fafaf9] dark:bg-[#0c0a09] flex items-center justify-center">
@@ -33,6 +47,11 @@ const App: React.FC = () => {
   const [activeSemesterId, setActiveSemesterId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [ingestMode, setIngestMode] = useState<'SINGLE' | 'SEMESTER'>('SINGLE');
+  const [ingestSubMode, setIngestSubMode] = useState<'VIDEO' | 'CRASH_COURSE'>('VIDEO');
+  
+  const [timetable, setTimetable] = useState<TimeTableDay[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
   
   const [loadingStatus, setLoadingStatus] = useState<string>('');
   const [authLoading, setAuthLoading] = useState(true);
@@ -44,6 +63,9 @@ const App: React.FC = () => {
   const [sharedCourseToImport, setSharedCourseToImport] = useState<Course | null>(null);
   const [videoQueue, setVideoQueue] = useState<Array<{courseId: string, reelId: string, prompt: string, notifyEmail: boolean, totalReels: number}>>([]);
   const [startReelIndex, setStartReelIndex] = useState(0);
+  const [onboardingComplete, setOnboardingComplete] = useState(false);
+
+  const [examCramMode, setExamCramMode] = useState(false);
 
   const activeSemester = semesters.find(s => s.id === activeSemesterId) || null;
 
@@ -53,6 +75,12 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // Basic Client-Side Router
+    const path = window.location.pathname;
+    if (path === '/terms') setAppState(AppState.TERMS);
+    else if (path === '/privacy') setAppState(AppState.PRIVACY);
+    else if (path === '/refund') setAppState(AppState.REFUND);
+    
     const timer = setTimeout(() => setAuthLoading(false), 5000);
     return () => clearTimeout(timer);
   }, []);
@@ -82,16 +110,47 @@ const App: React.FC = () => {
 
     CloudService.subscribeToAuthChanges((u) => {
         setUser(u);
-        setAuthLoading(false);
+        
+        // Don't auto-redirect if on a public policy page
+        const path = window.location.pathname;
+        const isPublicPage = path === '/terms' || path === '/privacy' || path === '/refund';
+
         if (u) {
-            CloudService.getUserCourses(u.id).then(c => { if(c.length > 0) setCourses(c); });
+            if (!isPublicPage) setAppState(AppState.DASHBOARD);
+            CloudService.getUserCourses(u.id).then(c => { 
+                if(c.length === 0) {
+                     const sample = getSampleCourse(u.id);
+                     CloudService.saveUserCourse(u.id, sample);
+                     setCourses([sample]);
+                } else {
+                    setCourses(c); 
+                }
+            });
             CloudService.getUserSemesters(u.id).then(s => { if(s.length > 0) setSemesters(s); });
         } else {
-             getAllCourses().then(c => setCourses(c));
+             getAllCourses().then(c => {
+                 if (c.length === 0) {
+                      const sample = getSampleCourse('local');
+                      saveLocalCourse(sample);
+                      setCourses([sample]);
+                 } else {
+                     setCourses(c);
+                 }
+             });
              getAllSemesters().then(s => setSemesters(s));
         }
+        setAuthLoading(false);
     });
+    
+    refreshGlobalData();
   }, []);
+
+  const refreshGlobalData = async () => {
+      const t = await getTimetable();
+      setTimetable(t);
+      const a = await getAllAssignments();
+      setAssignments(a);
+  };
 
   const handleToggleTheme = () => {
       setTheme(prev => {
@@ -104,14 +163,72 @@ const App: React.FC = () => {
 
   const handleLogin = () => {
       setAppState(AppState.DASHBOARD);
-      if (sharedCourseToImport) {
-          // Import logic if needed
-      }
   };
 
   const handleGuest = () => {
       setUser({ id: 'guest', name: 'Guest', email: '', avatarUrl: '', tier: 'FREE' });
       setAppState(AppState.DASHBOARD);
+  };
+
+  const handleProfileUpdate = (newProfile: UserProfile) => {
+      if (user) {
+          const updatedUser = { ...user, profile: newProfile };
+          setUser(updatedUser);
+          if (user.id !== 'guest') {
+              CloudService.updateUserProfile(user.id, newProfile);
+          }
+      }
+  };
+
+  const handleOnboardingComplete = (profile: UserProfile) => {
+      handleProfileUpdate({...profile, tutorialCompleted: true});
+      setOnboardingComplete(true);
+      if (examCramMode) {
+          setIngestMode('SINGLE');
+          setIngestSubMode('CRASH_COURSE');
+          setAppState(AppState.INGEST);
+      } else {
+          setAppState(AppState.DASHBOARD);
+      }
+  };
+
+  const handleStartCrashCourseFromOnboarding = () => {
+      setExamCramMode(true);
+      handleProfileUpdate({ role: 'Student', learningStyle: 'Visual', tutorialCompleted: true } as UserProfile);
+      setOnboardingComplete(true);
+      
+      setIngestMode('SINGLE');
+      setIngestSubMode('CRASH_COURSE');
+      setAppState(AppState.INGEST);
+  };
+
+  const checkFreeLimit = () => {
+      if (user?.tier === 'PRO') return true;
+      const activeCount = courses.filter(c => !c.deletedAt).length;
+      if (activeCount >= 3) {
+          setAppState(AppState.PRICING);
+          showToast("Free Plan Limit Reached. Upgrade for unlimited courses.");
+          return false;
+      }
+      return true;
+  };
+
+  const handleUpgradeSuccess = async () => {
+      if (user && user.id !== 'guest') {
+          await CloudService.upgradeUserToPro(user.id);
+          setUser({ ...user, tier: 'PRO' });
+          showToast("Welcome to Scholar! Subscription Active.");
+          setAppState(AppState.DASHBOARD);
+      } else {
+          showToast("Please sign in to upgrade.");
+          setAppState(AppState.AUTH);
+      }
+  };
+
+  const handleAddAssignment = async (newAssignment: Assignment) => {
+      await saveAssignment(newAssignment);
+      await refreshGlobalData();
+      showToast(`${newAssignment.type === 'EXAM' ? 'Exam' : 'Assignment'} Scheduled`);
   };
 
   const handleStartAnalysis = async (data: CourseRequest) => {
@@ -124,33 +241,96 @@ const App: React.FC = () => {
           }
       } catch (e) { console.error(e); }
 
-      setLoadingStatus("Analyzing Syllabus Architecture...");
       setPendingRequest(data);
       
       try {
-          const analysis = await analyzeSyllabus(data.syllabus);
-          setAnalysisResult(analysis);
-          
           if (data.isSemesterInit) {
                setLoadingStatus("Architecting Semester Plan...");
-               const subjects = await structureSemester(data.syllabus);
+               
+               const semesterArchitecture = await architectSemester(
+                   data.syllabus, 
+                   data.semesterStartDate, 
+                   data.semesterEndDate, 
+                   data.semesterLocation,
+                   data.semesterGoal?.toString(),
+                   data.semesterUniversity
+               );
+               
                const newSemester: Semester = {
                    id: `sem-${Date.now()}`,
                    ownerId: user?.id || 'local',
-                   title: data.semesterName || 'My Semester',
+                   title: data.semesterName || semesterArchitecture.semesterName || 'My Semester',
                    level: data.level,
                    createdAt: Date.now(),
-                   subjects: subjects
+                   startDate: semesterArchitecture.startDate || data.semesterStartDate,
+                   endDate: semesterArchitecture.endDate || data.semesterEndDate,
+                   location: semesterArchitecture.location || data.semesterLocation,
+                   holidays: semesterArchitecture.holidays,
+                   targetGoal: data.semesterGoal,
+                   university: data.semesterUniversity,
+                   gradingSchema: data.semesterGradingSchema,
+                   attendancePolicy: data.semesterAttendancePolicy,
+                   subjects: semesterArchitecture.subjects.map((sub, idx) => {
+                       const insights = semesterArchitecture.strategyAnalysis?.[sub.title] || semesterArchitecture.strategyAnalysis?.[Object.keys(semesterArchitecture.strategyAnalysis || {}).find(k => sub.title.includes(k) || k.includes(sub.title)) || ''];
+                       return {
+                           id: `subject-${Date.now()}-${idx}`,
+                           title: sub.title,
+                           units: (sub.units || []).map((unit, uIdx) => ({
+                               id: `unit-${Date.now()}-${idx}-${uIdx}`,
+                               title: unit.title,
+                               description: unit.description,
+                               status: 'PENDING',
+                               isHighYield: insights?.highYieldUnitTitles?.some((t: string) => unit.title.includes(t) || t.includes(unit.title)),
+                           })),
+                           attendance: { attended: 0, total: 0 },
+                           projectedTotalClasses: sub.projectedTotalClasses,
+                           difficulty: insights?.difficulty,
+                           scoringStrategy: insights?.strategy,
+                           examWeights: data.semesterExamStructure 
+                       }
+                   }),
+                   pyqContent: semesterArchitecture.rawPyqs 
                };
                
                if (user && user.id !== 'guest') await CloudService.saveUserSemester(user.id, newSemester);
                else await saveLocalSemester(newSemester);
                
                setSemesters(prev => [newSemester, ...prev]);
+
+               if (semesterArchitecture.timetable && semesterArchitecture.timetable.length > 0) {
+                   for (const daySchedule of semesterArchitecture.timetable) {
+                       const classesWithIds = daySchedule.classes.map(c => ({
+                           ...c,
+                           id: `class-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                           color: '#' + Math.floor(Math.random()*16777215).toString(16)
+                       }));
+                       await saveTimetableDay({ day: daySchedule.day, classes: classesWithIds });
+                   }
+               }
+               
+               if (semesterArchitecture.assignments && semesterArchitecture.assignments.length > 0) {
+                    for (const assign of semesterArchitecture.assignments) {
+                        await saveAssignment({
+                            id: `assign-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            title: assign.title,
+                            subject: assign.subject,
+                            dueDate: assign.dueDate || new Date().toISOString().split('T')[0],
+                            type: assign.type || 'PROBLEM_SET',
+                            status: 'PENDING',
+                            description: assign.description
+                        });
+                    }
+               }
+               
+               refreshGlobalData();
                setLoadingStatus('');
                setActiveSemesterId(newSemester.id);
                setAppState(AppState.SEMESTER_VIEW);
+
           } else {
+               setLoadingStatus("Analyzing Syllabus Architecture...");
+               const analysis = await analyzeSyllabus(data.syllabus);
+               setAnalysisResult(analysis);
                setAppState(AppState.ANALYSIS);
           }
       } catch (e) {
@@ -171,7 +351,7 @@ const App: React.FC = () => {
           ...pendingRequest, 
           level, 
           includePYQ, 
-          consultationAnswers: answers,
+          consultationAnswers: answers, 
           selectedTopics 
       };
 
@@ -242,7 +422,7 @@ const App: React.FC = () => {
                     updatedCourse.reels[i].audioUri = audioBase64;
                 }
                 
-                if (course.mode === 'CRASH_COURSE' && updatedCourse.reels[i].audioUri) {
+                if (course.mode === 'CRASH_COURSE') {
                     updatedCourse.reels[i].isReady = true;
                     updatedCourse.reels[i].isProcessing = false;
                     updatedCourse.completedReels += 1;
@@ -309,18 +489,6 @@ const App: React.FC = () => {
                   updatedCourse.reels[reelIndex].audioUri = audioUri;
               }
 
-              if (!audioUri) {
-                  console.warn(`Audio generation failed for reel ${item.reelId}. Skipping completion.`);
-                  if (activeCourse?.id === updatedCourse.id) setActiveCourse(updatedCourse);
-                  setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
-                  if (user && user.id !== 'guest') await CloudService.saveUserCourse(user.id, updatedCourse);
-                  else await saveLocalCourse(updatedCourse);
-                  
-                  setVideoQueue(prev => prev.slice(1));
-                  processingRef.current = false;
-                  return;
-              }
-
               let videoUri = null;
               let imageUri = null;
 
@@ -339,7 +507,7 @@ const App: React.FC = () => {
                       }
                   }
               } catch (e) {
-                  console.warn("Veo generation attempt failed, falling back to Image", e);
+                  console.warn("Veo generation attempt failed", e);
               }
 
               if (!videoUri) {
@@ -349,12 +517,10 @@ const App: React.FC = () => {
 
               updatedCourse.reels[reelIndex].videoUri = videoUri;
               updatedCourse.reels[reelIndex].imageUri = imageUri;
-
-              if (updatedCourse.reels[reelIndex].audioUri && (updatedCourse.reels[reelIndex].videoUri || updatedCourse.reels[reelIndex].imageUri)) {
-                  updatedCourse.reels[reelIndex].isReady = true;
-                  updatedCourse.reels[reelIndex].isProcessing = false;
-                  updatedCourse.completedReels += 1;
-              }
+              
+              updatedCourse.reels[reelIndex].isReady = true;
+              updatedCourse.reels[reelIndex].isProcessing = false;
+              updatedCourse.completedReels += 1;
 
               if (updatedCourse.completedReels === updatedCourse.totalReels) {
                   updatedCourse.status = 'READY';
@@ -371,6 +537,17 @@ const App: React.FC = () => {
 
           } catch (e) {
               console.error("Generation failed for item", item, e);
+              const currentCourse = courses.find(c => c.id === item.courseId);
+              if (currentCourse) {
+                  const updatedCourse = JSON.parse(JSON.stringify(currentCourse));
+                  const reelIndex = updatedCourse.reels.findIndex((r: ReelData) => r.id === item.reelId);
+                  if (reelIndex !== -1) {
+                      updatedCourse.reels[reelIndex].isReady = true; 
+                      updatedCourse.reels[reelIndex].isProcessing = false;
+                      if (activeCourse?.id === updatedCourse.id) setActiveCourse(updatedCourse);
+                      setCourses(prev => prev.map(c => c.id === updatedCourse.id ? updatedCourse : c));
+                  }
+              }
           } finally {
               setVideoQueue(prev => prev.slice(1));
               processingRef.current = false;
@@ -523,6 +700,29 @@ const App: React.FC = () => {
         }
   };
 
+  const handleDailyCheckinComplete = (attendedSubjects: string[]) => {
+      if (semesters.length > 0) {
+          const targetSemester = activeSemesterId ? semesters.find(s => s.id === activeSemesterId) : semesters[0];
+          
+          if (targetSemester) {
+              const updatedSem = JSON.parse(JSON.stringify(targetSemester));
+              
+              attendedSubjects.forEach(subjectName => {
+                  const subject = updatedSem.subjects.find((s: any) => s.title.toLowerCase().includes(subjectName.toLowerCase()) || subjectName.toLowerCase().includes(s.title.toLowerCase()));
+                  if (subject) {
+                      subject.attendance.attended += 1;
+                      subject.attendance.total += 1;
+                  }
+              });
+              
+              setSemesters(prev => prev.map(s => s.id === updatedSem.id ? updatedSem : s));
+              if (user && user.id !== 'guest') CloudService.saveUserSemester(user.id, updatedSem);
+              else saveLocalSemester(updatedSem);
+          }
+      }
+      refreshGlobalData();
+  };
+
   const handleDeleteCourse = async (id: string) => {
       if (user && user.id !== 'guest') await CloudService.deleteUserCourse(user.id, id);
       else await deleteLocalCourse(id);
@@ -543,8 +743,7 @@ const App: React.FC = () => {
       if (user && user.id !== 'guest') {
           const newXP = (user.profile?.xp || 0) + amount;
           const updatedProfile = { ...user.profile, xp: newXP } as any;
-          setUser({ ...user, profile: updatedProfile });
-          CloudService.updateUserProfile(user.id, updatedProfile);
+          handleProfileUpdate(updatedProfile);
       }
   };
 
@@ -555,146 +754,275 @@ const App: React.FC = () => {
 
   if (authLoading) return <LoadingFallback />;
 
+  const needsOnboarding = user && user.id !== 'guest' && !user.profile && !onboardingComplete;
+  if (needsOnboarding) return (
+    <ErrorBoundary>
+        <Suspense fallback={<LoadingFallback />}>
+            <OnboardingView 
+                onComplete={handleOnboardingComplete}
+                onStartCrashCourse={handleStartCrashCourseFromOnboarding}
+            />
+        </Suspense>
+    </ErrorBoundary>
+  );
+
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      {toastMsg && (
-          <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-stone-900 text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest z-[100] animate-fade-in shadow-xl">
-              {toastMsg}
-          </div>
-      )}
+    <ErrorBoundary>
+      <Suspense fallback={<LoadingFallback />}>
+        {toastMsg && (
+            <div className="fixed top-6 left-1/2 transform -translate-x-1/2 bg-stone-900 text-white px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest z-[100] animate-fade-in shadow-xl">
+                {toastMsg}
+            </div>
+        )}
 
-      {appState === AppState.LANDING && (
-        <LandingView 
-          onEnter={() => setAppState(user ? AppState.DASHBOARD : AppState.AUTH)} 
-          onNavigate={(page) => setAppState(page as any)}
-          onToggleTheme={handleToggleTheme}
-          currentTheme={theme}
-        />
-      )}
-
-      {appState === AppState.AUTH && (
-        <AuthView 
-            onLogin={handleLogin} 
-            onGuest={handleGuest} 
+        {appState === AppState.LANDING && (
+            <LandingView 
+            onEnter={() => setAppState(user ? AppState.DASHBOARD : AppState.AUTH)} 
+            onNavigate={(page) => {
+                setAppState(page as any);
+                if(page === 'TERMS') window.history.pushState(null, '', '/terms');
+                if(page === 'PRIVACY') window.history.pushState(null, '', '/privacy');
+                if(page === 'REFUND') window.history.pushState(null, '', '/refund');
+            }}
             onToggleTheme={handleToggleTheme}
             currentTheme={theme}
-        />
-      )}
+            />
+        )}
 
-      {appState === AppState.PRICING && (
-          <PricingView 
-             onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)} 
-             onGetStarted={() => setAppState(user ? AppState.DASHBOARD : AppState.AUTH)}
-             onToggleTheme={handleToggleTheme}
-             currentTheme={theme}
-          />
-      )}
+        {appState === AppState.AUTH && (
+            <AuthView 
+                onLogin={handleLogin} 
+                onGuest={handleGuest} 
+                onToggleTheme={handleToggleTheme}
+                currentTheme={theme}
+            />
+        )}
 
-      {appState === AppState.CONTACT && (
-          <ContactView 
-             onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)}
-             onToggleTheme={handleToggleTheme}
-             currentTheme={theme}
-             onNavigate={(page) => setAppState(page as any)}
-          />
-      )}
+        {appState === AppState.PRICING && (
+            <PricingView 
+                user={user}
+                onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)} 
+                onGetStarted={() => setAppState(user ? AppState.DASHBOARD : AppState.AUTH)}
+                onUpgradeSuccess={handleUpgradeSuccess}
+                onToggleTheme={handleToggleTheme}
+                currentTheme={theme}
+            />
+        )}
 
-       {appState === AppState.SITEMAP && (
-          <SitemapView 
-             onNavigate={(page) => setAppState(page)}
-             onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)}
-          />
-      )}
+        {appState === AppState.CONTACT && (
+            <ContactView 
+                onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)}
+                onToggleTheme={handleToggleTheme}
+                currentTheme={theme}
+                onNavigate={(page) => setAppState(page as any)}
+            />
+        )}
 
-      {appState === AppState.DASHBOARD && (
-        <Dashboard 
-          user={user} 
-          courses={courses} 
-          semesters={semesters}
-          onCreateNew={() => setAppState(AppState.INGEST)} 
-          onSelectCourse={(id) => { 
-              const c = courses.find(c => c.id === id); 
-              if (c) { setActiveCourse(c); setAppState(AppState.CLASSROOM); } 
-          }}
-          onSelectSemester={(sem) => {
-              setActiveSemesterId(sem.id);
-              setAppState(AppState.SEMESTER_VIEW);
-          }}
-          onDeleteCourse={handleDeleteCourse}
-          onSignOut={() => { CloudService.signOut(); setUser(null); setAppState(AppState.LANDING); }}
-          onToggleTheme={handleToggleTheme}
-          currentTheme={theme}
-        />
-      )}
+        {appState === AppState.TERMS && (
+            <TermsView onBack={() => {
+                setAppState(user ? AppState.DASHBOARD : AppState.LANDING);
+                window.history.pushState(null, '', '/');
+            }} />
+        )}
 
-      {appState === AppState.SEMESTER_VIEW && activeSemester && (
-          <SemesterView 
-             semester={activeSemester}
-             onBack={() => setAppState(AppState.DASHBOARD)}
-             onGenerateUnit={() => {}}
-             onGenerateTopic={handleGenerateTopic}
-             onOpenUnit={(courseId) => {
-                 const c = courses.find(c => c.id === courseId);
-                 if (c) { setActiveCourse(c); setAppState(AppState.CLASSROOM); }
-             }}
-             onUpdateSemester={(updated) => {
-                  setSemesters(prev => prev.map(s => s.id === updated.id ? updated : s));
-                  if (user && user.id !== 'guest') CloudService.saveUserSemester(user.id, updated);
-                  else saveLocalSemester(updated);
-             }}
-             onDeleteSemester={handleDeleteSemester}
-          />
-      )}
+        {appState === AppState.PRIVACY && (
+            <PrivacyView onBack={() => {
+                setAppState(user ? AppState.DASHBOARD : AppState.LANDING);
+                window.history.pushState(null, '', '/');
+            }} />
+        )}
 
-      {appState === AppState.INGEST && (
-        <IngestView 
-           user={user}
-           onStart={handleStartAnalysis} 
-           onCancel={() => setAppState(AppState.DASHBOARD)}
-           loadingStatus={loadingStatus}
-           currentTheme={theme}
-        />
-      )}
+        {appState === AppState.REFUND && (
+            <RefundView onBack={() => {
+                setAppState(user ? AppState.DASHBOARD : AppState.LANDING);
+                window.history.pushState(null, '', '/');
+            }} />
+        )}
 
-      {appState === AppState.ANALYSIS && analysisResult && (
-        <AnalysisView 
-           analysis={analysisResult} 
-           onConfirm={handleConfirmCourse} 
-           onCancel={() => setAppState(AppState.INGEST)} 
-        />
-      )}
+        {appState === AppState.DASHBOARD && (
+            <Dashboard 
+            user={user} 
+            courses={courses} 
+            semesters={semesters}
+            timetable={timetable}
+            assignments={assignments}
+            onCreateNew={() => { 
+                if (checkFreeLimit()) {
+                    setIngestMode('SINGLE'); 
+                    setIngestSubMode('VIDEO');
+                    setAppState(AppState.INGEST); 
+                }
+            }}
+            onStartSemester={() => { 
+                if (checkFreeLimit()) {
+                    setIngestMode('SEMESTER'); 
+                    setAppState(AppState.INGEST);
+                }
+            }}
+            onStartCourse={() => { 
+                if (checkFreeLimit()) {
+                    setIngestMode('SINGLE'); 
+                    setIngestSubMode('VIDEO');
+                    setAppState(AppState.INGEST);
+                }
+            }}
+            onSelectCourse={(id) => { 
+                const c = courses.find(c => c.id === id); 
+                if (c) { setActiveCourse(c); setAppState(AppState.CLASSROOM); } 
+            }}
+            onSelectSemester={(sem) => {
+                setActiveSemesterId(sem.id);
+                setAppState(AppState.SEMESTER_VIEW);
+            }}
+            onDeleteCourse={handleDeleteCourse}
+            onSignOut={() => { CloudService.signOut(); setUser(null); setAppState(AppState.LANDING); }}
+            onToggleTheme={handleToggleTheme}
+            currentTheme={theme}
+            onUpdateProfile={(p) => { handleProfileUpdate(p); setAppState(AppState.PROFILE); }} 
+            onOpenTimetable={() => setAppState(AppState.TIMETABLE)}
+            onOpenAssignments={() => setAppState(AppState.ASSIGNMENTS)}
+            onUpgrade={() => setAppState(AppState.PRICING)}
+            onReviewSubject={(subject) => {
+                if (checkFreeLimit()) {
+                    setIngestMode('SINGLE');
+                    setIngestSubMode('CRASH_COURSE');
+                    setAppState(AppState.INGEST);
+                }
+            }}
+            onOpenTutor={() => setAppState(AppState.TUTOR)}
+            />
+        )}
 
-      {appState === AppState.CLASSROOM && activeCourse && (
-          <ClassroomView 
-              course={activeCourse}
-              onBack={() => setAppState(AppState.DASHBOARD)}
-              onOpenReel={handleOpenReel}
-              onStartExam={() => setAppState(AppState.EXAM)}
-              onToggleTheme={handleToggleTheme}
-              currentTheme={theme}
-          />
-      )}
+        {appState === AppState.TUTOR && (
+            <TutorView 
+                courses={courses} 
+                username={user?.name?.split(' ')[0] || 'Scholar'}
+                onBack={() => setAppState(AppState.DASHBOARD)} 
+            />
+        )}
 
-      {appState === AppState.EXAM && activeCourse && (
-          <ExamView
-              course={activeCourse}
-              onClose={() => setAppState(AppState.CLASSROOM)}
-              onComplete={(score) => handleXPUpgrade(score * 10)}
-          />
-      )}
+        {appState === AppState.PROFILE && user && (
+            <ProfileView 
+                user={user}
+                onBack={() => setAppState(AppState.DASHBOARD)}
+                onUpdateProfile={handleProfileUpdate}
+                onSignOut={() => { CloudService.signOut(); setUser(null); setAppState(AppState.LANDING); }}
+                onStartExamCram={() => { 
+                    if (checkFreeLimit()) {
+                        setIngestMode('SINGLE');
+                        setIngestSubMode('CRASH_COURSE');
+                        setAppState(AppState.INGEST);
+                    }
+                }}
+                onStartSemester={() => {
+                    if (checkFreeLimit()) {
+                        setIngestMode('SEMESTER');
+                        setAppState(AppState.INGEST);
+                    }
+                }}
+                onUpgrade={() => setAppState(AppState.PRICING)}
+            />
+        )}
 
-      {appState === AppState.FEED && activeCourse && (
-        <ReelFeed 
-           activeCourse={activeCourse} 
-           reels={activeCourse.reels} 
-           onUpdateReel={handleUpdateReel} 
-           onBack={() => setAppState(AppState.CLASSROOM)}
-           onGenerateRemedial={handleGenerateRemedial}
-           onXPUpgrade={handleXPUpgrade}
-           onRegenerateImage={handleRegenerateImage}
-        />
-      )}
-    </Suspense>
+        {appState === AppState.TIMETABLE && (
+            <TimetableView 
+                onBack={() => setAppState(AppState.DASHBOARD)} 
+                onUpdate={refreshGlobalData}
+            />
+        )}
+
+        {appState === AppState.ASSIGNMENTS && (
+            <AssignmentView onBack={() => { refreshGlobalData(); setAppState(AppState.DASHBOARD); }} />
+        )}
+
+        {appState === AppState.SEMESTER_VIEW && activeSemester && (
+            <SemesterView 
+                semester={activeSemester}
+                assignments={assignments} 
+                timetable={timetable} 
+                onBack={() => setAppState(AppState.DASHBOARD)}
+                onGenerateUnit={() => {}}
+                onGenerateTopic={handleGenerateTopic}
+                onOpenUnit={(courseId) => {
+                    const c = courses.find(c => c.id === courseId);
+                    if (c) { setActiveCourse(c); setAppState(AppState.CLASSROOM); }
+                }}
+                onUpdateSemester={(updated) => {
+                    setSemesters(prev => prev.map(s => s.id === updated.id ? updated : s));
+                    if (user && user.id !== 'guest') CloudService.saveUserSemester(user.id, updated);
+                    else saveLocalSemester(updated);
+                }}
+                onDeleteSemester={handleDeleteSemester}
+                onAddAssignment={handleAddAssignment}
+            />
+        )}
+
+        {appState === AppState.INGEST && (
+            <IngestView 
+            user={user}
+            initialMode={ingestMode}
+            initialSubMode={ingestSubMode}
+            onStart={handleStartAnalysis} 
+            onCancel={() => setAppState(AppState.DASHBOARD)}
+            loadingStatus={loadingStatus}
+            currentTheme={theme}
+            />
+        )}
+
+        {appState === AppState.ANALYSIS && analysisResult && (
+            <AnalysisView 
+            analysis={analysisResult} 
+            onConfirm={handleConfirmCourse} 
+            onCancel={() => setAppState(AppState.INGEST)} 
+            />
+        )}
+
+        {appState === AppState.CLASSROOM && activeCourse && (
+            <ClassroomView 
+                course={activeCourse}
+                user={user}
+                onBack={() => setAppState(AppState.DASHBOARD)}
+                onOpenReel={handleOpenReel}
+                onStartExam={() => setAppState(AppState.EXAM)}
+                onToggleTheme={handleToggleTheme}
+                currentTheme={theme}
+                onUpgrade={() => setAppState(AppState.PRICING)}
+            />
+        )}
+
+        {appState === AppState.EXAM && activeCourse && (
+            <ExamView
+                course={activeCourse}
+                onClose={() => setAppState(AppState.CLASSROOM)}
+                onComplete={(score) => handleXPUpgrade(score * 10)}
+            />
+        )}
+
+        {appState === AppState.FEED && activeCourse && (
+            <ReelFeed 
+            activeCourse={activeCourse} 
+            reels={activeCourse.reels} 
+            onUpdateReel={handleUpdateReel} 
+            onBack={() => setAppState(AppState.CLASSROOM)}
+            onGenerateRemedial={handleGenerateRemedial}
+            onXPUpgrade={handleXPUpgrade}
+            onRegenerateImage={handleRegenerateImage}
+            />
+        )}
+
+        {appState === AppState.SITEMAP && (
+            <SitemapView
+                onNavigate={(page) => {
+                    setAppState(page);
+                    if(page === AppState.TERMS) window.history.pushState(null, '', '/terms');
+                    if(page === AppState.PRIVACY) window.history.pushState(null, '', '/privacy');
+                    if(page === AppState.REFUND) window.history.pushState(null, '', '/refund');
+                }}
+                onBack={() => setAppState(user ? AppState.DASHBOARD : AppState.LANDING)}
+            />
+        )}
+      </Suspense>
+    </ErrorBoundary>
   );
 };
 

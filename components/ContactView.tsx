@@ -1,132 +1,134 @@
 
-
 import React, { useState } from 'react';
 
 interface ContactViewProps {
   onBack: () => void;
   onToggleTheme: () => void;
   currentTheme: 'light' | 'dark';
-  onNavigate?: (page: 'SITEMAP') => void;
+  onNavigate?: (page: any) => void;
 }
 
 const ContactView: React.FC<ContactViewProps> = ({ onBack, onToggleTheme, currentTheme, onNavigate }) => {
-  const [formState, setFormState] = useState({ name: '', email: '', message: '' });
+  const [formState, setFormState] = useState({ name: '', email: '', subject: 'Support', message: '' });
   const [isSubmitted, setIsSubmitted] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitted(true);
-    // Simulate API call
-    setTimeout(() => {
-        // Logic to send would go here
-    }, 1000);
+    // Simulate API
   };
 
   return (
-    <div className="fixed inset-0 w-full h-[100dvh] bg-[#fafaf9] dark:bg-[#0c0a09] font-sans text-stone-900 dark:text-white transition-colors duration-1000 flex flex-col z-50">
-      
-       {/* Seamless Grid Pattern */}
-       <div className="absolute inset-0 pointer-events-none z-0 opacity-[0.03] dark:opacity-[0.05]" 
-           style={{ 
-             backgroundImage: `linear-gradient(to right, #808080 1px, transparent 1px), linear-gradient(to bottom, #808080 1px, transparent 1px)`, 
-             backgroundSize: '40px 40px' 
-           }}>
-       </div>
-
-       {/* Ambient Light */}
-       <div className="absolute inset-0 pointer-events-none z-0">
-          <div className="absolute bottom-[-10%] left-[-10%] w-[50vw] h-[50vw] bg-orange-500/5 dark:bg-orange-500/10 rounded-full blur-[120px]"></div>
-       </div>
-
-       {/* Minimal Header */}
-       <div className="w-full p-6 md:p-8 flex justify-end items-center z-50 shrink-0 animate-fade-in relative">
-        <button 
-            onClick={onBack} 
-            className="group flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors"
-        >
-            <span>Close</span>
-            <span className="material-symbols-outlined text-lg group-hover:rotate-90 transition-transform">close</span>
-        </button>
+    <div className="fixed inset-0 w-full h-[100dvh] bg-[#FAFAFA] dark:bg-[#000000] font-sans text-[#1D1D1F] dark:text-[#F5F5F7] z-50 overflow-y-auto">
+       
+       <div className="sticky top-0 w-full p-6 flex justify-end z-50">
+          <button 
+              onClick={onBack} 
+              className="w-10 h-10 rounded-full bg-stone-200 dark:bg-stone-800 flex items-center justify-center hover:scale-110 transition-transform"
+          >
+              <span className="material-symbols-rounded">close</span>
+          </button>
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto z-10 custom-scrollbar flex flex-col items-center justify-center p-6 relative">
-          <div className="w-full max-w-2xl animate-dreamy-in pb-12">
-                
-                <div className="mb-8 md:mb-16">
-                     <span className="block text-orange-600 dark:text-orange-500 font-bold uppercase tracking-widest text-[10px] md:text-xs mb-4">Contact</span>
-                     <h1 className="font-display text-4xl md:text-7xl font-bold mb-4 md:mb-6 text-stone-900 dark:text-white leading-tight">
-                        Let's start a <br/> conversation.
-                     </h1>
-                </div>
-
-                {isSubmitted ? (
-                    <div className="py-12 border-l-2 border-green-500 pl-8 bg-white/50 dark:bg-stone-900/50 backdrop-blur-sm rounded-r-xl">
-                        <h3 className="text-xl md:text-2xl font-bold mb-2 text-stone-900 dark:text-white">Message received.</h3>
-                        <p className="text-stone-500 text-base md:text-lg mb-8 max-w-md">Thank you for reaching out. We'll get back to you shortly.</p>
-                        <button onClick={onBack} className="text-stone-900 dark:text-white font-bold underline decoration-orange-500 underline-offset-4 hover:text-orange-600 transition-colors">Return to Home</button>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="space-y-6 md:space-y-12">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12">
-                            <div className="group">
-                                <label className="block text-[10px] md:text-xs font-bold text-stone-400 uppercase tracking-widest mb-2 group-focus-within:text-orange-600 transition-colors">Your Name</label>
-                                <input 
-                                    type="text" 
-                                    required
-                                    className="w-full py-3 md:py-4 bg-transparent border-b border-stone-200 dark:border-stone-800 text-lg md:text-2xl outline-none focus:border-orange-600 dark:focus:border-orange-500 text-stone-900 dark:text-white transition-colors placeholder-stone-300 dark:placeholder-stone-700 font-display"
-                                    placeholder="Jane Doe"
-                                    value={formState.name}
-                                    onChange={e => setFormState({...formState, name: e.target.value})}
-                                />
-                            </div>
-                            <div className="group">
-                                <label className="block text-[10px] md:text-xs font-bold text-stone-400 uppercase tracking-widest mb-2 group-focus-within:text-orange-600 transition-colors">Email Address</label>
-                                <input 
-                                    type="email" 
-                                    required
-                                    className="w-full py-3 md:py-4 bg-transparent border-b border-stone-200 dark:border-stone-800 text-lg md:text-2xl outline-none focus:border-orange-600 dark:focus:border-orange-500 text-stone-900 dark:text-white transition-colors placeholder-stone-300 dark:placeholder-stone-700 font-display"
-                                    placeholder="jane@example.com"
-                                    value={formState.email}
-                                    onChange={e => setFormState({...formState, email: e.target.value})}
-                                />
-                            </div>
-                        </div>
-                        <div className="group">
-                            <label className="block text-[10px] md:text-xs font-bold text-stone-400 uppercase tracking-widest mb-2 group-focus-within:text-orange-600 transition-colors">Message</label>
-                            <textarea 
-                                required
-                                className="w-full py-3 md:py-4 bg-transparent border-b border-stone-200 dark:border-stone-800 text-lg md:text-2xl outline-none focus:border-orange-600 dark:focus:border-orange-500 text-stone-900 dark:text-white transition-colors min-h-[100px] resize-none placeholder-stone-300 dark:placeholder-stone-700 font-display"
-                                placeholder="Tell us about your project..."
-                                value={formState.message}
-                                onChange={e => setFormState({...formState, message: e.target.value})}
-                            />
-                        </div>
-                        
-                        <div className="flex flex-col md:flex-row items-center justify-between pt-4 gap-6">
-                            <div className="hidden md:block text-xs text-stone-400 max-w-xs">
-                                By submitting this form, you agree to our privacy policy.
-                            </div>
-                            <button type="submit" className="w-full md:w-auto px-8 py-4 bg-stone-900 dark:bg-white text-white dark:text-stone-900 font-bold uppercase tracking-widest text-xs rounded-full hover:bg-orange-600 dark:hover:bg-orange-500 hover:text-white dark:hover:text-white transition-all shadow-lg hover:shadow-xl hover:-translate-y-1">
-                                Send Request
-                            </button>
-                        </div>
-                    </form>
-                )}
-
-                <div className="mt-16 md:mt-20 pt-10 border-t border-stone-200 dark:border-stone-800 flex flex-col md:flex-row gap-8 md:gap-16">
-                    <div>
-                         <span className="block text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">Email</span>
-                         <a href="mailto:hello@orbis.com" className="text-base md:text-lg font-medium text-stone-900 dark:text-white hover:text-orange-600 transition-colors">hello@orbis.com</a>
-                    </div>
-                     {onNavigate && (
-                        <div>
-                            <span className="block text-stone-400 text-[10px] font-bold uppercase tracking-widest mb-1">More</span>
-                            <button onClick={() => onNavigate('SITEMAP')} className="text-base md:text-lg font-medium text-stone-900 dark:text-white hover:text-orange-600 transition-colors">Sitemap</button>
-                        </div>
-                    )}
-                </div>
+      <div className="min-h-[80vh] flex flex-col md:flex-row items-center max-w-7xl mx-auto px-6 pb-20 animate-fade-in">
+          
+          {/* Left Text */}
+          <div className="flex-1 md:pr-20 mb-12 md:mb-0">
+              <h1 className="text-6xl md:text-8xl font-bold font-display tracking-tighter mb-8 leading-none">
+                  Let's<br/>Talk.
+              </h1>
+              <p className="text-xl text-stone-500 max-w-md leading-relaxed">
+                  We're here to help you optimize your academic journey. Reach out for support, partnerships, or just to say hello.
+              </p>
+              
+              <div className="mt-12 space-y-4">
+                  <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-stone-100 dark:bg-stone-900 rounded-full flex items-center justify-center">
+                          <span className="material-symbols-rounded">mail</span>
+                      </div>
+                      <div>
+                          <div className="text-xs font-bold uppercase tracking-widest text-stone-400">Email</div>
+                          <div className="font-bold">support@onorbis.com</div>
+                      </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-stone-100 dark:bg-stone-900 rounded-full flex items-center justify-center">
+                          <span className="material-symbols-rounded">location_on</span>
+                      </div>
+                      <div>
+                          <div className="text-xs font-bold uppercase tracking-widest text-stone-400">HQ</div>
+                          <div className="font-bold">San Francisco, CA</div>
+                      </div>
+                  </div>
+              </div>
           </div>
+
+          {/* Right Form */}
+          <div className="flex-1 w-full max-w-xl">
+              {isSubmitted ? (
+                  <div className="bg-green-50 dark:bg-green-900/20 p-10 rounded-[2rem] text-center">
+                      <span className="material-symbols-rounded text-6xl text-green-600 mb-6">check_circle</span>
+                      <h3 className="text-3xl font-bold mb-4">Message Sent</h3>
+                      <p className="text-stone-500 mb-8">We'll be in touch shortly.</p>
+                      <button onClick={onBack} className="text-stone-900 dark:text-white font-bold underline">Return Home</button>
+                  </div>
+              ) : (
+                  <form onSubmit={handleSubmit} className="space-y-8">
+                      <div className="grid grid-cols-2 gap-6">
+                          <div className="group">
+                              <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2">Name</label>
+                              <input 
+                                required
+                                className="w-full bg-transparent border-b border-stone-300 dark:border-stone-700 py-3 text-xl outline-none focus:border-orange-600 transition-colors"
+                                placeholder="Jane Doe"
+                                value={formState.name}
+                                onChange={e => setFormState({...formState, name: e.target.value})}
+                              />
+                          </div>
+                          <div className="group">
+                              <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2">Email</label>
+                              <input 
+                                required
+                                type="email"
+                                className="w-full bg-transparent border-b border-stone-300 dark:border-stone-700 py-3 text-xl outline-none focus:border-orange-600 transition-colors"
+                                placeholder="jane@example.com"
+                                value={formState.email}
+                                onChange={e => setFormState({...formState, email: e.target.value})}
+                              />
+                          </div>
+                      </div>
+                      
+                      <div className="group">
+                          <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2">Subject</label>
+                          <select 
+                              className="w-full bg-transparent border-b border-stone-300 dark:border-stone-700 py-3 text-xl outline-none focus:border-orange-600 transition-colors cursor-pointer"
+                              value={formState.subject}
+                              onChange={e => setFormState({...formState, subject: e.target.value})}
+                          >
+                              <option className="bg-white dark:bg-black" value="Support">Technical Support</option>
+                              <option className="bg-white dark:bg-black" value="Billing">Billing Question</option>
+                              <option className="bg-white dark:bg-black" value="Feature">Feature Request</option>
+                          </select>
+                      </div>
+
+                      <div className="group">
+                          <label className="block text-xs font-bold uppercase tracking-widest text-stone-400 mb-2">Message</label>
+                          <textarea 
+                              required
+                              className="w-full bg-transparent border-b border-stone-300 dark:border-stone-700 py-3 text-xl outline-none focus:border-orange-600 transition-colors min-h-[100px] resize-none"
+                              placeholder="How can we help?"
+                              value={formState.message}
+                              onChange={e => setFormState({...formState, message: e.target.value})}
+                          />
+                      </div>
+
+                      <button type="submit" className="px-10 py-4 bg-black dark:bg-white text-white dark:text-black rounded-full font-bold uppercase tracking-widest text-xs hover:scale-105 transition-transform shadow-lg">
+                          Send Message
+                      </button>
+                  </form>
+              )}
+          </div>
+
       </div>
     </div>
   );

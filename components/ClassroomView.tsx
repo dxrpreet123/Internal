@@ -1,40 +1,78 @@
 
-
-import React, { useState, useEffect } from 'react';
-import { Course, ReelData } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { Course, ReelData, User, ChatMessage } from '../types';
+import { chatWithDashboardTutor } from '../services/geminiService';
+import ReactMarkdown from 'react-markdown';
 
 interface ClassroomViewProps {
   course: Course;
+  user: User | null;
   onBack: () => void;
   onOpenReel: (index: number) => void;
   onStartExam: () => void;
   onToggleTheme: () => void;
   currentTheme: 'light' | 'dark';
+  onUpgrade: () => void;
 }
 
-const ClassroomView: React.FC<ClassroomViewProps> = ({ course, onBack, onOpenReel, onStartExam, onToggleTheme, currentTheme }) => {
-  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'EXAM' | 'NOTES'>('CURRICULUM');
+const ClassroomView: React.FC<ClassroomViewProps> = ({ course, user, onBack, onOpenReel, onStartExam, onToggleTheme, currentTheme, onUpgrade }) => {
+  const [activeTab, setActiveTab] = useState<'CURRICULUM' | 'TUTOR' | 'FLASHCARDS' | 'NOTES' | 'RESOURCES' | 'EXAM'>('CURRICULUM');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+
+  // -- TUTOR STATE --
+  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [isChatTyping, setIsChatTyping] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+
+  // -- FLASHCARD STATE --
+  const [fcIndex, setFcIndex] = useState(0);
+  const [fcFlipped, setFcFlipped] = useState(false);
+  const flashcards = course.reels.filter(r => r.flashcard).map(r => r.flashcard!);
+
+  // -- RESOURCES STATE --
+  const youtubeResources = course.reels.filter(r => r.youtubeResource).map(r => r.youtubeResource!);
+  const webResources = Array.from(new Set(course.reels.flatMap(r => r.sources || []).filter(s => s)));
 
   // Calculate stats
   const completedCount = course.reels.filter(r => r.userQuizResult === true).length;
   const progress = Math.round((completedCount / course.totalReels) * 100);
 
-  // Render Math formulas if they exist
+  const isPro = user?.tier === 'PRO';
+
+  // Render Math formulas in Chat
   useEffect(() => {
-    // @ts-ignore
-    if (window.renderMathInElement) {
-        // @ts-ignore
-        window.renderMathInElement(document.body, {
-            delimiters: [
-                {left: '$$', right: '$$', display: true},
-                {left: '$', right: '$', display: false},
-            ],
-            throwOnError: false
-        });
+    if (activeTab === 'TUTOR' && chatContainerRef.current && (window as any).renderMathInElement) {
+        setTimeout(() => {
+            if(chatContainerRef.current) {
+                (window as any).renderMathInElement(chatContainerRef.current, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }, 100);
     }
-  }, [activeTab]);
+  }, [activeTab, chatHistory]);
+
+  // Scroll chat to bottom
+  useEffect(() => {
+      if (chatScrollRef.current) {
+          chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+      }
+  }, [chatHistory, isChatTyping, activeTab]);
 
   const handleDownloadPDF = () => {
+    if (!isPro) {
+        setShowUpgradeModal(true);
+        return;
+    }
+
     const printContent = `
       <html>
         <head>
@@ -91,189 +129,457 @@ const ClassroomView: React.FC<ClassroomViewProps> = ({ course, onBack, onOpenRee
     }
   };
 
+  const openYoutube = (e: React.MouseEvent, url: string) => {
+      e.stopPropagation();
+      window.open(url, '_blank');
+  };
+
+  // -- TUTOR HANDLERS --
+  const handleChatSend = async () => {
+      if (!chatInput.trim()) return;
+      
+      const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', text: chatInput };
+      setChatHistory(prev => [...prev, userMsg]);
+      setChatInput('');
+      setIsChatTyping(true);
+
+      const contextData = course.reels.map(r => `Module: ${r.title}\nConcept: ${r.keyConcept}\nScript: ${r.script}\n`).join('\n---\n');
+
+      try {
+          const response = await chatWithDashboardTutor(userMsg.text, chatHistory, course.title, contextData);
+          const aiMsg: ChatMessage = { id: (Date.now()+1).toString(), role: 'model', text: response };
+          setChatHistory(prev => [...prev, aiMsg]);
+      } catch (e) {
+          setChatHistory(prev => [...prev, { id: 'err', role: 'model', text: "Connection error. Please try again." }]);
+      } finally {
+          setIsChatTyping(false);
+      }
+  };
+
+  // -- FLASHCARD HANDLERS --
+  const handleNextCard = () => {
+      setFcFlipped(false);
+      setTimeout(() => {
+          setFcIndex(prev => (prev + 1) % flashcards.length);
+      }, 300);
+  };
+
+  const handlePrevCard = () => {
+      setFcFlipped(false);
+      setTimeout(() => {
+          setFcIndex(prev => (prev - 1 + flashcards.length) % flashcards.length);
+      }, 300);
+  };
+
   return (
     <div className="h-[100dvh] w-full bg-[#fafaf9] dark:bg-[#0c0a09] font-sans flex flex-col transition-colors duration-500 overflow-hidden">
       
-      {/* Header */}
-      <div className="px-6 py-4 md:px-8 md:py-6 border-b border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 shrink-0 z-20 flex justify-between items-center">
-         <div className="flex items-center gap-4">
-             <button onClick={onBack} className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center text-stone-500 hover:text-orange-600 transition-colors">
-                 <span className="material-symbols-outlined text-lg">arrow_back</span>
+      {/* Immersive Header - Floating & Glass */}
+      <div className="px-6 py-4 md:px-8 md:py-6 bg-white/80 dark:bg-stone-900/80 backdrop-blur-md shrink-0 z-20 flex justify-between items-center sticky top-0 border-b border-stone-100 dark:border-stone-800/50">
+         <div className="flex items-center gap-6 max-w-[70%]">
+             <button onClick={onBack} className="w-10 h-10 rounded-full hover:bg-stone-100 dark:hover:bg-stone-800 flex items-center justify-center text-stone-500 hover:text-stone-900 dark:hover:text-white transition-all group shrink-0">
+                 <span className="material-symbols-rounded text-xl group-hover:-translate-x-1 transition-transform">arrow_back</span>
              </button>
-             <div>
-                 <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest block mb-1">Classroom</span>
-                 <h1 className="text-lg md:text-xl font-bold text-stone-900 dark:text-white font-display line-clamp-1">{course.title}</h1>
+             <div className="min-w-0">
+                 <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest block mb-0.5">Course</span>
+                 <h1 className="text-lg md:text-2xl font-bold text-stone-900 dark:text-white font-display tracking-tight truncate">{course.title}</h1>
              </div>
          </div>
-         <div className="flex items-center gap-4">
-            <div className="hidden md:flex flex-col items-end mr-4">
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Mastery</span>
-                <span className="text-lg font-bold text-stone-900 dark:text-white">{progress}%</span>
+         <div className="flex items-center gap-4 md:gap-6">
+            {/* Minimal Progress Ring */}
+            <div className="hidden md:flex items-center gap-3">
+                <div className="relative w-10 h-10">
+                    <svg className="w-full h-full -rotate-90">
+                        <circle cx="20" cy="20" r="16" className="stroke-stone-200 dark:stroke-stone-800" strokeWidth="3" fill="none" />
+                        <circle cx="20" cy="20" r="16" className="stroke-orange-600 transition-all duration-1000" strokeWidth="3" fill="none" strokeDasharray="100" strokeDashoffset={100 - progress} strokeLinecap="round" />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                        <span className="material-symbols-rounded text-sm text-stone-400">school</span>
+                    </div>
+                </div>
+                <div className="flex flex-col">
+                    <span className="text-sm font-bold text-stone-900 dark:text-white">{progress}%</span>
+                    <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Mastery</span>
+                </div>
             </div>
-            <button onClick={onToggleTheme} className="text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors">
-                <span className="material-symbols-outlined">{currentTheme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
+
+            <button onClick={onToggleTheme} className="w-10 h-10 rounded-full flex items-center justify-center text-stone-400 hover:text-stone-900 dark:hover:text-white hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors">
+                <span className="material-symbols-rounded">{currentTheme === 'dark' ? 'light_mode' : 'dark_mode'}</span>
             </button>
          </div>
       </div>
 
-      {/* Main Layout */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {/* Main Split Layout */}
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
           
-          {/* Sidebar / Tabs */}
-          <div className="w-full md:w-64 bg-white dark:bg-stone-900 border-b md:border-b-0 md:border-r border-stone-200 dark:border-stone-800 shrink-0 flex md:flex-col justify-between md:justify-start">
-               <div className="p-4 md:p-6 space-y-1 md:space-y-4 flex md:flex-col gap-2 md:gap-0 w-full overflow-x-auto md:overflow-visible">
-                   <button 
-                      onClick={() => setActiveTab('CURRICULUM')}
-                      className={`flex-1 md:w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors shrink-0 ${
-                          activeTab === 'CURRICULUM' 
-                          ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-bold' 
-                          : 'text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800'
-                      }`}
-                   >
-                       <span className="material-symbols-outlined">view_agenda</span>
-                       <span className="text-xs uppercase tracking-widest">Curriculum</span>
-                   </button>
-                   
-                   <button 
-                      onClick={() => setActiveTab('NOTES')}
-                      className={`flex-1 md:w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors shrink-0 ${
-                          activeTab === 'NOTES' 
-                          ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-bold' 
-                          : 'text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800'
-                      }`}
-                   >
-                       <span className="material-symbols-outlined">sticky_note_2</span>
-                       <span className="text-xs uppercase tracking-widest">Notes & Refs</span>
-                   </button>
-
-                   <button 
-                      onClick={() => setActiveTab('EXAM')}
-                      className={`flex-1 md:w-full text-left px-4 py-3 rounded-lg flex items-center gap-3 transition-colors shrink-0 ${
-                          activeTab === 'EXAM' 
-                          ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-400 font-bold' 
-                          : 'text-stone-500 hover:bg-stone-50 dark:hover:bg-stone-800'
-                      }`}
-                   >
-                       <span className="material-symbols-outlined">quiz</span>
-                       <span className="text-xs uppercase tracking-widest">Exam Room</span>
-                   </button>
+          {/* Sidebar Navigation - Sticky on mobile */}
+          <div className="w-full md:w-64 bg-[#fafaf9] dark:bg-[#0c0a09] border-b md:border-b-0 md:border-r border-stone-100 dark:border-stone-800 shrink-0 flex flex-row md:flex-col justify-between z-10 sticky top-0 md:static">
+               <div className="flex flex-row md:flex-col w-full overflow-x-auto md:overflow-visible no-scrollbar p-2 md:p-6 snap-x gap-2">
+                   {[
+                       { id: 'CURRICULUM', icon: 'view_agenda', label: 'Modules' },
+                       { id: 'TUTOR', icon: 'smart_toy', label: 'AI Tutor' },
+                       { id: 'FLASHCARDS', icon: 'style', label: 'Flashcards' },
+                       { id: 'NOTES', icon: 'sticky_note_2', label: 'Notes' },
+                       { id: 'RESOURCES', icon: 'link', label: 'Resources' },
+                       { id: 'EXAM', icon: 'quiz', label: 'Exam Room' }
+                   ].map((tab) => (
+                       <button 
+                          key={tab.id}
+                          onClick={() => setActiveTab(tab.id as any)}
+                          className={`snap-start flex-1 md:w-full text-left px-4 py-3 md:py-3.5 rounded-xl flex items-center gap-2 md:gap-3 transition-all shrink-0 group whitespace-nowrap justify-center md:justify-start ${
+                              activeTab === tab.id 
+                              ? 'bg-white dark:bg-stone-800 text-stone-900 dark:text-white shadow-sm ring-1 ring-stone-200 dark:ring-stone-700' 
+                              : 'text-stone-500 hover:bg-stone-200/50 dark:hover:bg-stone-900'
+                          }`}
+                       >
+                           <span className={`material-symbols-rounded text-lg ${activeTab === tab.id ? 'text-orange-600' : 'text-stone-400 group-hover:text-stone-600 dark:group-hover:text-stone-300'}`}>{tab.icon}</span>
+                           <span className="text-xs font-bold uppercase tracking-widest">{tab.label}</span>
+                       </button>
+                   ))}
                </div>
                
-               <div className="hidden md:block p-6 border-t border-stone-100 dark:border-stone-800">
-                    <div className="p-4 bg-stone-50 dark:bg-stone-800/50 rounded-xl border border-stone-200 dark:border-stone-700">
-                         <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Next Milestone</h4>
-                         <p className="text-sm font-bold text-stone-900 dark:text-white mb-3">Complete Module {Math.min(completedCount + 1, course.totalReels)}</p>
-                         <div className="w-full h-1.5 bg-stone-200 dark:bg-stone-700 rounded-full overflow-hidden">
-                             <div className="h-full bg-orange-600 rounded-full" style={{ width: `${progress}%` }}></div>
+               <div className="hidden md:block p-6 pt-0">
+                   <div className="p-5 rounded-2xl bg-gradient-to-br from-stone-900 to-stone-800 dark:from-stone-800 dark:to-stone-900 text-white shadow-lg relative overflow-hidden group">
+                         <div className="relative z-10">
+                             <h4 className="text-[10px] font-bold text-stone-400 uppercase tracking-widest mb-2">Up Next</h4>
+                             <p className="text-sm font-bold leading-tight mb-4 line-clamp-2">Module {Math.min(completedCount + 1, course.totalReels)}: {course.reels[Math.min(completedCount, course.reels.length - 1)]?.title || 'Course Complete'}</p>
+                             <button onClick={() => onOpenReel(Math.min(completedCount, course.reels.length - 1))} className="text-[10px] font-bold uppercase tracking-widest text-orange-400 hover:text-orange-300 flex items-center gap-1 group-hover:translate-x-1 transition-transform">
+                                 Continue <span className="material-symbols-rounded text-sm">arrow_forward</span>
+                             </button>
                          </div>
+                         <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-orange-500/20 transition-colors"></div>
                     </div>
                </div>
           </div>
 
           {/* Content Area */}
-          <div className="flex-1 bg-stone-50 dark:bg-stone-950 overflow-y-auto p-4 md:p-8 custom-scrollbar">
-              <div className="max-w-4xl mx-auto pb-20 md:pb-0">
+          <div className={`flex-1 bg-white dark:bg-[#0c0a09] relative flex flex-col min-w-0 ${activeTab === 'TUTOR' ? 'overflow-hidden' : 'overflow-y-auto custom-scrollbar'}`}>
+              <div className={`max-w-4xl mx-auto w-full flex flex-col h-full ${activeTab === 'TUTOR' ? '' : 'p-6 md:p-12 pb-24'}`}>
                   
+                  {/* --- CURRICULUM TAB --- */}
                   {activeTab === 'CURRICULUM' && (
-                      <div className="space-y-6">
-                           <div className="mb-6">
-                               <h2 className="text-2xl font-bold text-stone-900 dark:text-white font-display mb-2">Learning Modules</h2>
-                               <p className="text-sm text-stone-500 dark:text-stone-400">Master these topics to complete the course.</p>
+                      <div className="animate-fade-in space-y-8 md:space-y-10">
+                           <div className="flex justify-between items-end mb-4 md:mb-8">
+                               <div>
+                                   <h2 className="text-3xl md:text-4xl font-bold text-stone-900 dark:text-white font-display tracking-tight">Curriculum</h2>
+                                   <p className="text-stone-500 dark:text-stone-400 mt-2 text-sm font-medium">Your personalized learning path.</p>
+                               </div>
+                               <span className="hidden md:inline-block px-4 py-2 bg-stone-50 dark:bg-stone-900 text-stone-500 dark:text-stone-400 text-[10px] font-bold uppercase tracking-widest rounded-full border border-stone-100 dark:border-stone-800">
+                                   {course.totalReels} Modules
+                               </span>
                            </div>
                            
-                           <div className="grid gap-4">
-                               {course.reels.map((reel, index) => (
-                                   <div key={reel.id} className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl p-4 md:p-6 shadow-sm hover:border-orange-500/50 transition-colors group">
-                                       <div className="flex flex-col md:flex-row gap-4 md:items-start">
-                                           {/* Thumbnail / Status */}
-                                           <div className="w-full md:w-48 aspect-video bg-stone-100 dark:bg-stone-950 rounded-lg overflow-hidden relative shrink-0">
-                                               {reel.imageUri ? (
-                                                   <img src={reel.imageUri} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                                               ) : (
-                                                   <div className="flex items-center justify-center h-full text-stone-300">
-                                                       <span className="material-symbols-outlined text-4xl">play_circle</span>
-                                                   </div>
-                                               )}
-                                               {reel.userQuizResult && (
-                                                   <div className="absolute top-2 right-2 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center shadow-md">
-                                                       <span className="material-symbols-outlined text-sm">check</span>
-                                                   </div>
-                                               )}
+                           <div className="flex flex-col">
+                               {course.reels.map((reel, index) => {
+                                   const isCompleted = reel.userQuizResult;
+                                   const isNext = index === completedCount;
+                                   
+                                   return (
+                                       <button 
+                                            key={reel.id} 
+                                            onClick={() => onOpenReel(index)}
+                                            className={`group relative flex items-center gap-4 md:gap-6 py-4 md:py-6 border-b border-stone-100 dark:border-stone-800/50 hover:bg-stone-50/50 dark:hover:bg-stone-900/30 transition-all px-2 md:px-4 -mx-2 md:-mx-4 rounded-xl ${
+                                                isNext ? 'bg-orange-50/30 dark:bg-orange-900/10' : ''
+                                            }`}
+                                       >
+                                           <div className="w-6 md:w-8 shrink-0 text-center">
+                                               <span className={`font-mono text-xs md:text-sm font-bold ${isCompleted ? 'text-green-500' : isNext ? 'text-orange-500' : 'text-stone-300 dark:text-stone-700'}`}>
+                                                   {String(index + 1).padStart(2, '0')}
+                                               </span>
                                            </div>
 
-                                           {/* Content Info */}
-                                           <div className="flex-1">
-                                               <div className="flex justify-between items-start mb-2">
-                                                    <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">Module {index + 1}</span>
-                                                    {reel.isProcessing && <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest animate-pulse">Building...</span>}
-                                               </div>
-                                               <h3 className="text-lg font-bold text-stone-900 dark:text-white mb-2 leading-tight">{reel.title}</h3>
-                                               <p className="text-xs text-stone-500 dark:text-stone-400 line-clamp-2 mb-4">{reel.script?.substring(0, 120)}...</p>
-                                               
-                                               {/* Actions */}
-                                               <div className="flex flex-wrap gap-2">
-                                                   <button 
-                                                      onClick={() => onOpenReel(index)}
-                                                      className="px-4 py-2 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-full font-bold uppercase tracking-widest text-[10px] hover:bg-orange-600 dark:hover:bg-orange-500 hover:text-white dark:hover:text-white transition-colors flex items-center gap-2"
-                                                   >
-                                                       <span className="material-symbols-outlined text-sm">play_arrow</span>
-                                                       Watch Reel
-                                                   </button>
-                                                   
-                                                   {(reel.youtubeQueries || reel.youtubeQuery) && (
-                                                        <button 
-                                                            onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(reel.youtubeQuery || reel.title)}`, '_blank')}
-                                                            className="px-4 py-2 border border-stone-200 dark:border-stone-800 text-stone-600 dark:text-stone-300 rounded-full font-bold uppercase tracking-widest text-[10px] hover:border-red-500 hover:text-red-500 transition-colors flex items-center gap-2"
-                                                        >
-                                                            <span className="material-symbols-outlined text-sm">smart_display</span>
-                                                            Deep Dive
-                                                        </button>
+                                           <div className="w-14 h-14 md:w-24 md:h-16 rounded-lg overflow-hidden relative shrink-0 bg-stone-200 dark:bg-stone-800 shadow-sm group-hover:shadow-md transition-all">
+                                               {reel.imageUri ? (
+                                                   <img src={reel.imageUri} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110 grayscale group-hover:grayscale-0" alt={reel.title} />
+                                               ) : (
+                                                   <div className="w-full h-full flex items-center justify-center text-stone-400">
+                                                       <span className="material-symbols-rounded text-xl">image</span>
+                                                   </div>
+                                               )}
+                                               <div className="absolute inset-0 bg-black/10 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                                                   {isCompleted ? (
+                                                       <span className="material-symbols-rounded text-white drop-shadow-md text-lg md:text-xl">check_circle</span>
+                                                   ) : (
+                                                       <span className="material-symbols-rounded text-white drop-shadow-md text-lg md:text-xl opacity-0 group-hover:opacity-100 transition-opacity">play_arrow</span>
                                                    )}
                                                </div>
                                            </div>
-                                       </div>
-                                   </div>
-                               ))}
+
+                                           <div className="flex-1 min-w-0 text-left">
+                                               <h3 className={`text-sm md:text-lg font-bold font-display mb-1 truncate ${isCompleted ? 'text-stone-500 line-through decoration-stone-300' : 'text-stone-900 dark:text-white'}`}>
+                                                   {reel.title}
+                                               </h3>
+                                               <p className="text-[10px] md:text-xs text-stone-400 dark:text-stone-500 line-clamp-1">
+                                                   {reel.script}
+                                               </p>
+                                           </div>
+
+                                           <div className="flex items-center gap-3 pl-2 text-right min-w-[60px] md:min-w-[80px] justify-end">
+                                               {reel.isProcessing ? (
+                                                    <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest text-orange-500 animate-pulse">Building</span>
+                                               ) : isCompleted ? (
+                                                    <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full">Done</span>
+                                               ) : (
+                                                    <span className="text-[8px] md:text-[9px] font-bold uppercase tracking-widest text-stone-400 group-hover:text-stone-900 dark:group-hover:text-white transition-colors">Start</span>
+                                               )}
+                                           </div>
+                                       </button>
+                                   );
+                               })}
                            </div>
                       </div>
                   )}
 
+                  {/* --- TUTOR TAB --- */}
+                  {activeTab === 'TUTOR' && (
+                      <div className="animate-fade-in flex flex-col h-full bg-white dark:bg-[#0c0a09] md:bg-transparent">
+                          {/* Chat Header - Mobile Friendly */}
+                          <div className="p-4 md:p-0 md:mb-6 flex items-center gap-4 shrink-0 border-b md:border-none border-stone-100 dark:border-stone-800">
+                              <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-orange-600 text-white flex items-center justify-center shadow-lg shrink-0">
+                                  <span className="material-symbols-rounded text-xl md:text-2xl">school</span>
+                              </div>
+                              <div>
+                                  <h2 className="text-lg md:text-2xl font-bold font-display text-stone-900 dark:text-white">Professor Orbis</h2>
+                                  <p className="text-xs md:text-sm text-stone-500">I know everything about this course.</p>
+                              </div>
+                          </div>
+
+                          <div className="flex-1 bg-stone-50 dark:bg-stone-900/50 md:rounded-[2rem] border-0 md:border border-stone-200 dark:border-stone-800 p-4 md:p-6 overflow-hidden flex flex-col relative h-full">
+                              <div ref={chatScrollRef} className="flex-1 overflow-y-auto space-y-4 custom-scrollbar pb-4 pr-1">
+                                  <div ref={chatContainerRef}>
+                                      {chatHistory.length === 0 && (
+                                          <div className="flex flex-col items-center justify-center h-full text-stone-400 opacity-60">
+                                              <span className="material-symbols-rounded text-5xl md:text-6xl mb-4">forum</span>
+                                              <p className="text-xs md:text-sm font-bold uppercase tracking-widest">Start the conversation</p>
+                                          </div>
+                                      )}
+                                      {chatHistory.map((msg, idx) => (
+                                          <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                              <div className={`max-w-[85%] p-3 md:p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                                                  msg.role === 'user' 
+                                                  ? 'bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-br-sm' 
+                                                  : 'bg-white dark:bg-stone-800 text-stone-700 dark:text-stone-200 border border-stone-100 dark:border-stone-700 rounded-bl-sm'
+                                              }`}>
+                                                  <ReactMarkdown 
+                                                      components={{
+                                                          code: ({node, ...props}) => <code className="bg-stone-100 dark:bg-stone-800 px-1 py-0.5 rounded text-orange-600 dark:text-orange-400 font-mono text-xs" {...props} />
+                                                      }}
+                                                  >{msg.text}</ReactMarkdown>
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                                  {isChatTyping && (
+                                      <div className="flex justify-start">
+                                          <div className="bg-white dark:bg-stone-800 p-3 rounded-2xl rounded-bl-none border border-stone-100 dark:border-stone-700 shadow-sm flex gap-1 items-center h-9">
+                                              <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce"></div>
+                                              <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                              <div className="w-1.5 h-1.5 bg-stone-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                          </div>
+                                      </div>
+                                  )}
+                              </div>
+
+                              {/* Fixed Input Area */}
+                              <div className="pt-3 md:pt-4 border-t border-stone-200 dark:border-stone-700 bg-stone-50 dark:bg-stone-900/50">
+                                  <div className="relative">
+                                      <input 
+                                          className="w-full bg-white dark:bg-stone-800 rounded-full pl-5 pr-12 py-3.5 text-sm outline-none border border-stone-200 dark:border-stone-700 focus:border-orange-500 shadow-sm text-stone-900 dark:text-white transition-colors"
+                                          placeholder="Explain this concept..."
+                                          value={chatInput}
+                                          onChange={e => setChatInput(e.target.value)}
+                                          onKeyDown={e => e.key === 'Enter' && handleChatSend()}
+                                      />
+                                      <button 
+                                          onClick={handleChatSend}
+                                          disabled={!chatInput.trim() || isChatTyping}
+                                          className="absolute right-1.5 top-1.5 w-9 h-9 bg-orange-600 hover:bg-orange-700 text-white rounded-full flex items-center justify-center transition-colors disabled:opacity-50"
+                                      >
+                                          <span className="material-symbols-rounded text-lg">arrow_upward</span>
+                                      </button>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+                  )}
+
+                  {/* --- FLASHCARDS TAB --- */}
+                  {activeTab === 'FLASHCARDS' && (
+                      <div className="animate-fade-in h-full flex flex-col items-center justify-center py-8">
+                          {flashcards.length === 0 ? (
+                              <div className="text-center text-stone-400">
+                                  <span className="material-symbols-rounded text-6xl mb-4">style</span>
+                                  <h3 className="text-xl font-bold text-stone-900 dark:text-white mb-2">No Flashcards</h3>
+                                  <p className="text-sm">Complete generated modules to unlock flashcards.</p>
+                              </div>
+                          ) : (
+                              <div className="w-full max-w-md perspective-1000 flex flex-col h-full">
+                                  <div className="flex justify-between items-center mb-6 px-2">
+                                      <h2 className="text-xl font-bold font-display text-stone-900 dark:text-white">Active Recall</h2>
+                                      <span className="text-xs font-bold uppercase tracking-widest text-stone-400 bg-stone-100 dark:bg-stone-800 px-3 py-1 rounded-full">
+                                          {fcIndex + 1} / {flashcards.length}
+                                      </span>
+                                  </div>
+
+                                  <div 
+                                      onClick={() => setFcFlipped(!fcFlipped)}
+                                      className={`relative w-full flex-1 min-h-[300px] cursor-pointer transition-transform duration-700 transform-style-3d group ${fcFlipped ? 'rotate-y-180' : ''}`}
+                                  >
+                                      {/* Front */}
+                                      <div className="absolute inset-0 backface-hidden bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-3xl p-10 flex flex-col items-center justify-center text-center shadow-xl group-hover:shadow-2xl transition-shadow">
+                                          <span className="material-symbols-rounded text-4xl text-orange-600 mb-6 bg-orange-50 dark:bg-orange-900/20 p-4 rounded-full">help_outline</span>
+                                          <h3 className="text-xl md:text-3xl font-bold text-stone-900 dark:text-white leading-tight font-display">
+                                              {flashcards[fcIndex].front}
+                                          </h3>
+                                          <p className="absolute bottom-8 text-[10px] font-bold uppercase tracking-widest text-stone-400">Tap to Flip</p>
+                                      </div>
+
+                                      {/* Back */}
+                                      <div className="absolute inset-0 backface-hidden rotate-y-180 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-3xl p-10 flex flex-col items-center justify-center text-center shadow-xl">
+                                          <span className="material-symbols-rounded text-4xl text-stone-500 mb-6">lightbulb</span>
+                                          <p className="text-lg md:text-2xl font-medium leading-relaxed">
+                                              {flashcards[fcIndex].back}
+                                          </p>
+                                      </div>
+                                  </div>
+
+                                  <div className="flex justify-center gap-6 mt-8">
+                                      <button onClick={handlePrevCard} className="w-14 h-14 rounded-full border border-stone-200 dark:border-stone-800 flex items-center justify-center hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors text-stone-600 dark:text-stone-300">
+                                          <span className="material-symbols-rounded text-2xl">arrow_back</span>
+                                      </button>
+                                      <button onClick={handleNextCard} className="w-14 h-14 rounded-full bg-orange-600 text-white flex items-center justify-center hover:bg-orange-700 transition-colors shadow-lg hover:scale-105 transform">
+                                          <span className="material-symbols-rounded text-2xl">arrow_forward</span>
+                                      </button>
+                                  </div>
+                              </div>
+                          )}
+                      </div>
+                  )}
+
+                  {/* --- RESOURCES TAB --- */}
+                  {activeTab === 'RESOURCES' && (
+                      <div className="animate-fade-in">
+                          <div className="mb-10">
+                              <h2 className="text-3xl font-bold text-stone-900 dark:text-white font-display mb-2">Library</h2>
+                              <p className="text-stone-500 text-sm">Curated deep dives and source materials.</p>
+                          </div>
+
+                          <div className="space-y-10">
+                              {/* Video Resources */}
+                              {youtubeResources.length > 0 && (
+                                  <div>
+                                      <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Deep Dive Videos</h3>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                                          {youtubeResources.map((res, i) => (
+                                              <div 
+                                                  key={i} 
+                                                  onClick={(e) => openYoutube(e, res.url)}
+                                                  className="group bg-white dark:bg-stone-900 rounded-2xl overflow-hidden border border-stone-200 dark:border-stone-800 cursor-pointer hover:shadow-lg transition-all"
+                                              >
+                                                  <div className="h-40 bg-stone-200 dark:bg-stone-800 relative">
+                                                      {res.thumbnail ? (
+                                                          <img src={res.thumbnail} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" alt={res.title} />
+                                                      ) : (
+                                                          <div className="w-full h-full flex items-center justify-center text-stone-400">
+                                                              <span className="material-symbols-rounded text-4xl">play_circle</span>
+                                                          </div>
+                                                      )}
+                                                      <div className="absolute bottom-3 right-3 bg-black/60 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-md">
+                                                          {res.timestamp}
+                                                      </div>
+                                                  </div>
+                                                  <div className="p-5">
+                                                      <h4 className="font-bold text-stone-900 dark:text-white line-clamp-2 mb-2 leading-snug group-hover:text-orange-600 transition-colors">{res.title}</h4>
+                                                      <div className="flex items-center gap-2 text-red-500 text-xs font-bold uppercase tracking-widest">
+                                                          <span className="material-symbols-rounded text-sm">smart_display</span>
+                                                          YouTube
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              )}
+
+                              {/* Web Resources */}
+                              {webResources.length > 0 && (
+                                  <div>
+                                      <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6">Source Links</h3>
+                                      <div className="space-y-3">
+                                          {webResources.map((res, i) => (
+                                              <a 
+                                                  key={i} 
+                                                  href={res.uri} 
+                                                  target="_blank" 
+                                                  rel="noreferrer"
+                                                  className="flex items-center justify-between p-4 bg-stone-50 dark:bg-stone-900/50 rounded-xl border border-stone-100 dark:border-stone-800 hover:bg-white dark:hover:bg-stone-800 transition-colors group"
+                                              >
+                                                  <div className="flex items-center gap-4 min-w-0">
+                                                      <div className="w-8 h-8 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center shrink-0">
+                                                          <span className="material-symbols-rounded text-sm">public</span>
+                                                      </div>
+                                                      <span className="text-sm font-medium text-stone-700 dark:text-stone-300 truncate max-w-full group-hover:text-blue-500 transition-colors">
+                                                          {res.title || res.uri}
+                                                      </span>
+                                                  </div>
+                                                  <span className="material-symbols-rounded text-stone-400 text-sm group-hover:text-blue-500 shrink-0 ml-4">open_in_new</span>
+                                              </a>
+                                          ))}
+                                      </div>
+                                  </div>
+                              )}
+
+                              {youtubeResources.length === 0 && webResources.length === 0 && (
+                                  <div className="text-center py-20 text-stone-400">
+                                      <span className="material-symbols-rounded text-6xl mb-4 opacity-30">link_off</span>
+                                      <p className="text-sm">No external resources found for this course.</p>
+                                  </div>
+                              )}
+                          </div>
+                      </div>
+                  )}
+
+                  {/* --- NOTES TAB --- */}
                   {activeTab === 'NOTES' && (
-                      <div className="space-y-6 animate-fade-in">
-                          <div className="flex justify-between items-start mb-6">
+                      <div className="animate-fade-in">
+                          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-10">
                                <div>
-                                   <h2 className="text-2xl font-bold text-stone-900 dark:text-white font-display mb-2">Smart Notes & Refs</h2>
-                                   <p className="text-sm text-stone-500 dark:text-stone-400">Aggregated insights from all modules.</p>
+                                   <h2 className="text-3xl font-bold text-stone-900 dark:text-white font-display">Smart Notes</h2>
+                                   <p className="text-stone-500 dark:text-stone-400 mt-1 text-sm">Key concepts extracted for review.</p>
                                </div>
                                <button 
                                   onClick={handleDownloadPDF}
-                                  className="px-5 py-2.5 bg-stone-900 dark:bg-white text-white dark:text-stone-900 rounded-lg font-bold uppercase tracking-widest text-xs shadow-md hover:shadow-lg transition-all flex items-center gap-2"
+                                  className={`px-6 py-3 rounded-full font-bold uppercase tracking-widest text-xs hover:shadow-lg hover:-translate-y-0.5 transition-all flex items-center gap-2 self-start md:self-auto ${
+                                      isPro 
+                                      ? 'bg-stone-900 dark:bg-white text-white dark:text-stone-900' 
+                                      : 'bg-stone-100 dark:bg-stone-800 text-stone-500 dark:text-stone-400 hover:bg-orange-100 dark:hover:bg-orange-900/20 hover:text-orange-600'
+                                  }`}
                                >
-                                  <span className="material-symbols-outlined text-sm">download</span>
-                                  Download PDF
+                                  <span className="material-symbols-rounded text-sm">{isPro ? 'download' : 'lock'}</span>
+                                  Export PDF
                                </button>
                            </div>
 
-                           <div className="grid gap-6">
+                           <div className="columns-1 md:columns-2 gap-6 space-y-6">
                                {course.reels.map((reel, idx) => (
-                                   <div key={idx} className="bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl p-6 shadow-sm">
-                                       <h3 className="text-base font-bold text-stone-900 dark:text-white mb-4 flex items-center gap-2">
-                                           <span className="w-6 h-6 rounded-full bg-stone-100 dark:bg-stone-800 text-stone-500 flex items-center justify-center text-xs">{idx + 1}</span>
-                                           {reel.title}
-                                       </h3>
+                                   <div key={idx} className="break-inside-avoid bg-stone-50 dark:bg-stone-900 rounded-2xl p-6 md:p-8 hover:shadow-lg transition-shadow border border-stone-100 dark:border-stone-800 group">
+                                       <div className="flex items-center gap-3 mb-6 pb-4 border-b border-stone-200 dark:border-stone-800">
+                                           <span className="font-mono text-xs text-stone-400">0{idx + 1}</span>
+                                           <h3 className="text-lg font-bold text-stone-900 dark:text-white font-display leading-tight">{reel.title}</h3>
+                                       </div>
                                        
                                        {reel.keyConcept && (
-                                           <div className="mb-4 p-4 bg-orange-50 dark:bg-orange-900/10 rounded-lg border-l-4 border-orange-500">
-                                               <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest block mb-1">Core Concept</span>
-                                               <p className="text-sm md:text-base font-medium text-stone-800 dark:text-stone-200 font-serif italic">{reel.keyConcept}</p>
+                                           <div className="mb-6 p-4 bg-white dark:bg-stone-800/50 rounded-xl border border-stone-100 dark:border-stone-700/50">
+                                               <span className="text-[9px] font-bold text-orange-600 uppercase tracking-widest block mb-2 opacity-80">Core Concept</span>
+                                               <p className="text-lg font-medium text-stone-800 dark:text-stone-200 font-serif italic leading-relaxed">"{reel.keyConcept}"</p>
                                            </div>
                                        )}
 
                                        {reel.bulletPoints && reel.bulletPoints.length > 0 ? (
-                                            <ul className="space-y-2 mb-4">
+                                            <ul className="space-y-3 pl-1">
                                                 {reel.bulletPoints.map((bp, i) => (
-                                                    <li key={i} className="flex gap-2 text-sm text-stone-600 dark:text-stone-400">
-                                                        <span className="text-orange-500 mt-1">•</span>
+                                                    <li key={i} className="flex gap-3 text-sm text-stone-600 dark:text-stone-400 leading-relaxed group-hover:text-stone-900 dark:group-hover:text-stone-300 transition-colors">
+                                                        <span className="text-stone-300 mt-1.5 w-1.5 h-1.5 rounded-full bg-stone-300 shrink-0"></span>
                                                         <span>{bp}</span>
                                                     </li>
                                                 ))}
@@ -281,58 +587,48 @@ const ClassroomView: React.FC<ClassroomViewProps> = ({ course, onBack, onOpenRee
                                        ) : (
                                             <p className="text-xs text-stone-400 italic">No detailed notes available.</p>
                                        )}
-                                       
-                                       <div className="pt-4 border-t border-stone-100 dark:border-stone-800">
-                                           <button 
-                                                onClick={() => window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(reel.youtubeQuery || reel.title)}`, '_blank')}
-                                                className="text-xs font-bold text-stone-500 hover:text-red-500 uppercase tracking-widest flex items-center gap-1 transition-colors"
-                                            >
-                                                <span className="material-symbols-outlined text-sm">open_in_new</span>
-                                                Related Video Resources
-                                            </button>
-                                       </div>
                                    </div>
                                ))}
                            </div>
                       </div>
                   )}
 
+                  {/* --- EXAM TAB --- */}
                   {activeTab === 'EXAM' && (
-                      <div className="space-y-6 animate-fade-in">
-                           <div className="mb-6 bg-gradient-to-r from-stone-900 to-stone-800 dark:from-stone-800 dark:to-stone-900 text-white p-8 rounded-2xl relative overflow-hidden">
+                      <div className="animate-fade-in flex flex-col items-center justify-center min-h-[60vh]">
+                           <div className="w-full max-w-2xl bg-white dark:bg-stone-900 rounded-[2.5rem] p-8 md:p-16 text-center shadow-2xl border border-stone-100 dark:border-stone-800 relative overflow-hidden group">
+                               
+                               <div className="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-stone-50 via-transparent to-transparent dark:from-stone-800/30 pointer-events-none opacity-50"></div>
+
                                <div className="relative z-10">
-                                   <h2 className="text-2xl font-bold font-display mb-2">Exam Preparation Room</h2>
-                                   <p className="text-stone-300 text-sm mb-6 max-w-lg">
-                                       Enter a distraction-free environment to test your knowledge with AI-generated mock exams based on your syllabus.
+                                   <div className="w-24 h-24 mx-auto bg-stone-50 dark:bg-stone-800 rounded-full flex items-center justify-center mb-8 shadow-inner">
+                                       <span className="material-symbols-rounded text-5xl text-stone-900 dark:text-white">history_edu</span>
+                                   </div>
+                                   
+                                   <h2 className="text-3xl md:text-5xl font-bold font-display text-stone-900 dark:text-white mb-6 tracking-tight">Final Assessment</h2>
+                                   <p className="text-lg text-stone-500 dark:text-stone-400 mb-10 max-w-lg mx-auto leading-relaxed font-light">
+                                       Enter the secure exam environment. Test your knowledge across all modules.
                                    </p>
+
+                                   <div className="flex justify-center gap-8 mb-12 border-y border-stone-100 dark:border-stone-800 py-6">
+                                       <div className="text-center px-4">
+                                           <span className="block text-2xl font-bold text-stone-900 dark:text-white">{course.totalReels * 2}m</span>
+                                           <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Duration</span>
+                                       </div>
+                                       <div className="w-px bg-stone-200 dark:bg-stone-800"></div>
+                                       <div className="text-center px-4">
+                                           <span className="block text-2xl font-bold text-stone-900 dark:text-white">{course.totalReels}</span>
+                                           <span className="text-[9px] font-bold text-stone-400 uppercase tracking-widest">Questions</span>
+                                       </div>
+                                   </div>
+
                                    <button 
                                       onClick={onStartExam}
-                                      className="px-8 py-4 bg-orange-600 text-white font-bold uppercase tracking-widest text-xs rounded-full hover:bg-orange-700 transition-all shadow-lg flex items-center gap-2 w-fit"
+                                      className="px-12 py-5 bg-stone-900 dark:bg-white text-white dark:text-stone-900 font-bold uppercase tracking-widest text-xs rounded-full hover:scale-105 transition-transform shadow-xl flex items-center gap-3 mx-auto"
                                    >
-                                       Enter Exam Hall
+                                       Start Exam
                                        <span className="material-symbols-outlined">arrow_forward</span>
                                    </button>
-                               </div>
-                               <span className="material-symbols-outlined absolute right-[-20px] bottom-[-20px] text-9xl text-white opacity-5">quiz</span>
-                           </div>
-
-                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                               <div className="p-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl">
-                                    <h3 className="text-sm font-bold text-stone-900 dark:text-white mb-2">Topic Coverage</h3>
-                                    <p className="text-xs text-stone-500 mb-4">Questions will be distributed across all generated modules.</p>
-                                    <div className="flex gap-2 flex-wrap">
-                                        {course.reels.slice(0, 5).map((r, i) => (
-                                            <span key={i} className="px-2 py-1 bg-stone-100 dark:bg-stone-800 text-[10px] font-bold uppercase tracking-widest text-stone-500 rounded">{r.title.substring(0, 15)}...</span>
-                                        ))}
-                                    </div>
-                               </div>
-                               <div className="p-6 bg-white dark:bg-stone-900 border border-stone-200 dark:border-stone-800 rounded-xl">
-                                    <h3 className="text-sm font-bold text-stone-900 dark:text-white mb-2">Exam Rules</h3>
-                                    <ul className="space-y-2">
-                                        <li className="flex items-center gap-2 text-xs text-stone-500"><span className="material-symbols-outlined text-sm">timer</span> Timed assessment</li>
-                                        <li className="flex items-center gap-2 text-xs text-stone-500"><span className="material-symbols-outlined text-sm">block</span> No backtracking</li>
-                                        <li className="flex items-center gap-2 text-xs text-stone-500"><span className="material-symbols-outlined text-sm">analytics</span> Instant report card</li>
-                                    </ul>
                                </div>
                            </div>
                       </div>
@@ -341,6 +637,33 @@ const ClassroomView: React.FC<ClassroomViewProps> = ({ course, onBack, onOpenRee
               </div>
           </div>
       </div>
+
+      {/* PRO Upgrade Modal */}
+      {showUpgradeModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+              <div className="bg-white dark:bg-stone-900 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl relative border border-stone-200 dark:border-stone-800">
+                  <button onClick={() => setShowUpgradeModal(false)} className="absolute top-4 right-4 p-2 text-stone-400 hover:text-stone-900 dark:hover:text-white transition-colors">
+                      <span className="material-symbols-rounded">close</span>
+                  </button>
+                  
+                  <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 text-orange-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                      <span className="material-symbols-rounded text-3xl">lock</span>
+                  </div>
+                  
+                  <h3 className="text-2xl font-bold font-display text-stone-900 dark:text-white mb-2">Unlock PDF Exports</h3>
+                  <p className="text-stone-500 mb-8 leading-relaxed">
+                      Upgrade to Scholar to download detailed study notes, access advanced AI tutoring, and create unlimited courses.
+                  </p>
+                  
+                  <button 
+                      onClick={() => { setShowUpgradeModal(false); onUpgrade(); }}
+                      className="w-full py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase tracking-widest text-xs rounded-xl transition-all shadow-lg hover:shadow-xl hover:-translate-y-1"
+                  >
+                      View Plans
+                  </button>
+              </div>
+          </div>
+      )}
 
     </div>
   );

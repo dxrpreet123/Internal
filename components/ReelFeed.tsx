@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Course, ReelData } from '../types';
 import ReelItem from './ReelItem';
@@ -19,6 +20,7 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
   const [activeIndex, setActiveIndex] = useState(0);
   const [showTutor, setShowTutor] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const detailsRef = useRef<HTMLDivElement>(null); // For sidebar
   
   // Resizable state
   const [playerHeight, setPlayerHeight] = useState(80); // percentage (vh equivalent)
@@ -41,6 +43,30 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
     });
     return { score: total === 0 ? 100 : Math.round((correct / total) * 100), failedReels: failed };
   }, [reels]);
+
+  // Safe access to active reel.
+  const activeReel = reels[activeIndex];
+  const isMasterySlide = activeIndex >= reels.length;
+  
+  // Fallback for metadata display if on mastery slide
+  const displayReel = activeReel || reels[reels.length - 1]; 
+  const isEquation = displayReel?.keyConcept ? /[=<>≈Δ∫∑]/.test(displayReel.keyConcept) : false;
+  const conceptLabel = isEquation ? "Core Equation" : "Key Takeaway";
+
+  // Math Rendering Effect for Sidebar
+  useEffect(() => {
+      if (detailsRef.current && (window as any).renderMathInElement) {
+          (window as any).renderMathInElement(detailsRef.current, {
+            delimiters: [
+                {left: '$$', right: '$$', display: true},
+                {left: '$', right: '$', display: false},
+                {left: '\\(', right: '\\)', display: false},
+                {left: '\\[', right: '\\]', display: true}
+            ],
+            throwOnError: false
+          });
+      }
+  }, [activeIndex, activeReel, eli5Content, isMasterySlide]);
 
   const handleScroll = () => {
     if (containerRef.current) {
@@ -68,11 +94,19 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
 
   const handleNext = () => {
     if (onXPUpgrade) onXPUpgrade(10);
-    if (activeIndex < reels.length) scrollToReel(activeIndex + 1);
+    // Allow scrolling to reels.length (which is the Mastery Slide index)
+    if (activeIndex <= reels.length - 1) {
+        scrollToReel(activeIndex + 1);
+    }
   };
 
   const handleQuizPass = (correct: boolean) => {
-      if (correct && onXPUpgrade) onXPUpgrade(50);
+      if (correct) {
+          if (onXPUpgrade) onXPUpgrade(50);
+      } else {
+          // PROACTIVE TUTOR: "Evolving" behavior
+          setTimeout(() => setShowTutor(true), 500);
+      }
   }
 
   const handleELI5 = async () => {
@@ -81,6 +115,8 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
           return;
       }
       const activeReel = reels[activeIndex];
+      if (!activeReel) return;
+
       setEli5Loading(true);
       try {
           const text = await explainLikeIm5(activeReel.keyConcept || activeReel.title, activeReel.script);
@@ -122,10 +158,6 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
     }
   }, [activeIndex]);
 
-  const activeReel = reels[activeIndex];
-  const isEquation = activeReel?.keyConcept ? /[=<>≈Δ∫∑]/.test(activeReel.keyConcept) : false;
-  const conceptLabel = isEquation ? "Core Equation" : "Key Takeaway";
-
   // --- CRASH COURSE RENDERER ---
   if (activeCourse.mode === 'CRASH_COURSE') {
       return (
@@ -138,7 +170,7 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
                     <div>
                         <h1 className="text-lg font-bold text-stone-900 dark:text-white font-display">Exam Cram</h1>
                         <p className="text-xs text-stone-500 uppercase tracking-wide">
-                            {activeIndex + 1} of {reels.length} • {activeCourse.title}
+                            {Math.min(activeIndex + 1, reels.length)} of {reels.length} • {activeCourse.title}
                         </p>
                     </div>
                 </div>
@@ -229,15 +261,17 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
                                     <span className="material-symbols-outlined text-green-500 text-4xl">military_tech</span>
                                 </div>
                                 <h2 className="text-3xl font-bold text-white mb-2 font-display">Mastery Achieved</h2>
-                                <button onClick={onBack} className="mt-8 px-8 py-3 bg-white text-black font-bold uppercase tracking-widest text-xs rounded-full hover:bg-stone-200 transition-all">
-                                    Finish
+                                <p className="text-stone-400 mb-8 max-w-xs">You've completed all modules with a perfect score.</p>
+                                <button onClick={onBack} className="px-8 py-3 bg-white text-black font-bold uppercase tracking-widest text-xs rounded-full hover:bg-stone-200 transition-all">
+                                    Finish Course
                                 </button>
                              </>
                         ) : (
                             <>
                                 <div className="mb-8 text-4xl font-bold text-orange-500">{score}%</div>
                                 <h2 className="text-2xl font-bold text-white mb-2 font-display">Keep Going</h2>
-                                <div className="flex flex-col gap-3 mt-8 w-64">
+                                <p className="text-stone-400 mb-8 max-w-xs">Review the failed modules to achieve 100% mastery.</p>
+                                <div className="flex flex-col gap-3 mt-4 w-64">
                                     <button 
                                         onClick={() => onGenerateRemedial && onGenerateRemedial(failedReels)}
                                         className="w-full py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase tracking-widest text-xs rounded-full transition-all"
@@ -245,7 +279,7 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
                                         Fix Gaps
                                     </button>
                                     <button onClick={onBack} className="text-stone-500 hover:text-white text-xs font-bold uppercase tracking-widest mt-2">
-                                        Return
+                                        Return to Dashboard
                                     </button>
                                 </div>
                             </>
@@ -288,54 +322,73 @@ const ReelFeed: React.FC<ReelFeedProps> = ({ activeCourse, reels, onUpdateReel, 
             </div>
             
             <div className="absolute top-6 right-6 z-50 flex gap-3">
-                 <button 
-                    onClick={handleELI5}
-                    className={`h-10 px-4 rounded-full backdrop-blur-md border flex items-center gap-2 transition-all ${eli5Content ? 'bg-orange-600 border-orange-600 text-white' : 'bg-black/40 border-white/10 text-white hover:bg-white/10'}`}
-                >
-                    {eli5Loading ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span> : <span className="material-symbols-outlined text-lg">child_care</span>}
-                    <span className="text-xs font-bold uppercase tracking-wide hidden md:inline">Simple</span>
-                </button>
+                 {!isMasterySlide && (
+                     <>
+                        <button 
+                            onClick={handleELI5}
+                            className={`h-10 px-4 rounded-full backdrop-blur-md border flex items-center gap-2 transition-all ${eli5Content ? 'bg-orange-600 border-orange-600 text-white' : 'bg-black/40 border-white/10 text-white hover:bg-white/10'}`}
+                        >
+                            {eli5Loading ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span> : <span className="material-symbols-outlined text-lg">child_care</span>}
+                            <span className="text-xs font-bold uppercase tracking-wide hidden md:inline">Simple</span>
+                        </button>
 
-                 <button 
-                    onClick={() => setShowTutor(!showTutor)}
-                    className={`h-10 px-4 rounded-full backdrop-blur-md border flex items-center gap-2 transition-all ${showTutor ? 'bg-orange-600 border-orange-600 text-white' : 'bg-black/40 border-white/10 text-white hover:bg-white/10'}`}
-                >
-                    <span className="material-symbols-outlined text-lg">smart_toy</span>
-                    <span className="text-xs font-bold uppercase tracking-wide hidden md:inline">Tutor</span>
-                </button>
+                        <button 
+                            onClick={() => setShowTutor(!showTutor)}
+                            className={`h-10 px-4 rounded-full backdrop-blur-md border flex items-center gap-2 transition-all ${showTutor ? 'bg-orange-600 border-orange-600 text-white' : 'bg-black/40 border-white/10 text-white hover:bg-white/10'}`}
+                        >
+                            <span className="material-symbols-outlined text-lg">smart_toy</span>
+                            <span className="text-xs font-bold uppercase tracking-wide hidden md:inline">Tutor</span>
+                        </button>
+                     </>
+                 )}
             </div>
 
         </div>
 
         {/* --- RIGHT SIDE: DETAILS PANEL --- */}
         <div className="hidden md:flex w-[350px] lg:w-[400px] bg-[#0c0a09] border-l border-white/5 flex-col shrink-0">
-            <div className="flex-1 p-8 overflow-y-auto custom-scrollbar">
+            <div ref={detailsRef} className="flex-1 p-8 overflow-y-auto custom-scrollbar">
                 
-                <div className="mb-8">
-                     <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2 block">Now Playing</span>
-                     <h2 className="text-2xl font-bold text-white font-display leading-tight">{activeReel.title}</h2>
-                </div>
-
-                <div className="mb-8 p-6 bg-white/5 rounded-2xl border border-white/5">
-                     <div className="flex items-center gap-2 mb-3">
-                         <span className="material-symbols-outlined text-stone-400 text-sm">{isEquation ? 'functions' : 'lightbulb'}</span>
-                         <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest">{conceptLabel}</h3>
-                     </div>
-                     <p className={`text-stone-200 leading-relaxed font-hand ${isEquation ? 'text-2xl' : 'text-lg'}`}>
-                         {activeReel.keyConcept}
-                     </p>
-                </div>
-
-                <div>
-                    <h3 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-4">Up Next</h3>
-                    <div className="space-y-1 relative pl-4 border-l border-white/10">
-                        {reels.slice(activeIndex + 1, activeIndex + 6).map((r, i) => (
-                            <div key={r.id} onClick={() => scrollToReel(activeIndex + 1 + i)} className="py-3 group cursor-pointer">
-                                <h4 className="text-sm font-medium text-stone-400 group-hover:text-white transition-colors">{r.title}</h4>
-                            </div>
-                        ))}
+                {isMasterySlide ? (
+                    <div className="flex flex-col items-center justify-center h-full text-center opacity-0 animate-fade-in">
+                        <div className="w-16 h-16 rounded-full bg-stone-800 flex items-center justify-center mb-6">
+                            <span className="material-symbols-outlined text-3xl text-stone-400">check</span>
+                        </div>
+                        <h2 className="text-2xl font-bold text-white font-display mb-2">Course Completed</h2>
+                        <p className="text-stone-500 text-sm">Great job! Return to the dashboard to take the final exam or explore resources.</p>
                     </div>
-                </div>
+                ) : (
+                    <>
+                        <div className="mb-8">
+                            <span className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2 block">Now Playing</span>
+                            <h2 className="text-2xl font-bold text-white font-display leading-tight">{activeReel.title}</h2>
+                        </div>
+
+                        <div className="mb-8 p-6 bg-white/5 rounded-2xl border border-white/5">
+                            <div className="flex items-center gap-2 mb-3">
+                                <span className="material-symbols-outlined text-stone-400 text-sm">{isEquation ? 'functions' : 'lightbulb'}</span>
+                                <h3 className="text-xs font-bold text-stone-400 uppercase tracking-widest">{conceptLabel}</h3>
+                            </div>
+                            <p className={`text-stone-200 leading-relaxed font-hand ${isEquation ? 'text-2xl' : 'text-lg'}`}>
+                                {activeReel.keyConcept}
+                            </p>
+                        </div>
+
+                        <div>
+                            <h3 className="text-xs font-bold text-stone-500 uppercase tracking-widest mb-4">Up Next</h3>
+                            <div className="space-y-1 relative pl-4 border-l border-white/10">
+                                {reels.slice(activeIndex + 1, activeIndex + 6).map((r, i) => (
+                                    <div key={r.id} onClick={() => scrollToReel(activeIndex + 1 + i)} className="py-3 group cursor-pointer">
+                                        <h4 className="text-sm font-medium text-stone-400 group-hover:text-white transition-colors">{r.title}</h4>
+                                    </div>
+                                ))}
+                                {reels.length > activeIndex + 6 && (
+                                    <div className="py-3 text-xs text-stone-600 italic">... and {reels.length - (activeIndex + 6)} more</div>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                )}
 
             </div>
             
