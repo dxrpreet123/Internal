@@ -1,20 +1,45 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+# Orbis Payment Integration (Subscriptions)
 
-This contains everything you need to run your app locally.
+This project includes a secure Node.js backend for handling Razorpay Subscriptions.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1wrB1MNsay-4dXPu_MtRIZpJwjRCPXV-N
+## Security Alert
+**Do NOT commit the `.env` file.** It contains your Secret Keys.
 
-## Run Locally
+## Quick Start
 
-**Prerequisites:**  Node.js
+1.  **Install Backend Dependencies:**
+    ```bash
+    npm install express razorpay cors dotenv
+    ```
 
+2.  **Configure Environment:**
+    *   Create a `.env` file in the root directory.
+    *   Log in to Razorpay Dashboard.
+    *   Go to **Subscriptions > Plans** and create a Monthly and a Yearly plan.
+    *   Copy the `plan_id` for each.
+    *   Update `.env`:
+    ```env
+    RAZORPAY_KEY_ID=your_key_id
+    RAZORPAY_KEY_SECRET=your_key_secret
+    RAZORPAY_PLAN_ID_MONTHLY=plan_xxxxxxxxxxxxx
+    RAZORPAY_PLAN_ID_YEARLY=plan_xxxxxxxxxxxxx
+    PORT=5000
+    ```
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+3.  **Run Server:**
+    ```bash
+    node server.js
+    ```
+    The server will start on port 5000.
+
+4.  **Run Frontend:**
+    *   Ensure your Vite app is running (`npm run dev`).
+    *   The frontend expects the server at `http://localhost:5000`.
+
+## Go-Live Checklist
+
+1.  **Key Rotation:** Ensure you are using keys generated *after* any potential leaks.
+2.  **HTTPS:** In production, ensure your backend is served over HTTPS.
+3.  **Webhooks:** Set up Razorpay Webhooks (`subscription.charged`, `subscription.cancelled`) to handle renewals and cancellations automatically.
+4.  **Environment Variables:** Never commit `.env` files to version control.

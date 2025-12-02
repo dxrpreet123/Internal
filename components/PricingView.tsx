@@ -11,6 +11,11 @@ interface PricingViewProps {
   user: User | null;
 }
 
+// --- CONFIGURATION ---
+// 1. Deploy server.js to a cloud provider (e.g., Render, Railway, Heroku).
+// 2. Paste the provided URL here (e.g., 'https://orbis-backend.onrender.com').
+const PRODUCTION_API_URL = 'https://internal-wzbh.onrender.com'; 
+
 const PRICING_CONFIG = {
     USD: {
         symbol: '$',
@@ -52,54 +57,143 @@ const PricingView: React.FC<PricingViewProps> = ({ onBack, onGetStarted, onUpgra
           return;
       }
 
-      if (currency === 'INR') {
-          handleRazorpayPayment();
-      } else {
-          // Placeholder for Stripe/International
-          alert("International payments coming soon. Switch to INR for Razorpay demo.");
-      }
+      handleRazorpaySubscription();
   };
 
-  const handleRazorpayPayment = () => {
-      setLoading(true);
-      const amount = billingCycle === 'MONTHLY' ? prices.monthly * 100 : prices.yearly * 100;
-      
-      const options = {
-          key: "rzp_test_1DP5mmOlF5G5ag", // Standard Test Key
-          amount: amount, 
-          currency: "INR",
-          name: "Orbis Scholar",
-          description: `${billingCycle === 'MONTHLY' ? 'Monthly' : 'Yearly'} Subscription`,
-          image: "https://res.cloudinary.com/dnbwvwaoe/image/upload/v1763891408/social_zefj9u.png",
-          handler: function (response: any) {
-              console.log("Payment Success:", response);
-              // In production, verify payment signature on backend here
-              onUpgradeSuccess();
-              setLoading(false);
-          },
-          prefill: {
-              name: user?.name || "",
-              email: user?.email || "",
-              contact: ""
-          },
-          theme: {
-              color: "#ea580c"
-          },
-          modal: {
-              ondismiss: function() {
-                  setLoading(false);
-              }
-          }
-      };
+  const handleRazorpaySubscription = async () => {
+      // Safety Check: Ensure Razorpay SDK is loaded
+      if (typeof window !== 'undefined' && !(window as any).Razorpay) {
+          alert("Razorpay SDK failed to load. Please check your internet connection.");
+          return;
+      }
 
+      setLoading(true);
+      
+      // Determine Backend URL based on Environment
+      const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+      
+      // If we are in production but haven't configured the URL yet, guide the user.
+      if (!isLocal && !PRODUCTION_API_URL) {
+          setLoading(false);
+          const simulate = window.confirm(
+              "Setup Required for Payments\n\n" +
+              "To accept real payments on this domain (" + window.location.hostname + "):\n" +
+              "1. Deploy 'server.js' to a cloud host (like Render or Railway).\n" +
+              "2. Paste the resulting URL into the 'PRODUCTION_API_URL' variable in 'components/PricingView.tsx'.\n\n" +
+              "Would you like to SIMULATE a successful upgrade for testing now?"
+          );
+          
+          if (simulate) {
+              onUpgradeSuccess();
+          }
+          return;
+      }
+
+      const apiBase = isLocal ? 'http://localhost:5000' : PRODUCTION_API_URL;
+      
       try {
+          // Attempt to connect to backend
+          const subResponse = await fetch(`${apiBase}/api/payment/subscription`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  planType: billingCycle 
+              })
+          });
+
+          if (!subResponse.ok) {
+              const errText = await subResponse.text();
+              throw new Error(`Server returned ${subResponse.status}: ${errText}`);
+          }
+
+          const subData = await subResponse.json();
+
+          if (!subData.success) {
+              throw new Error(subData.error || "Failed to create subscription");
+          }
+
+          // Open Razorpay Checkout
+          const options = {
+              key: subData.key_id, 
+              subscription_id: subData.id, 
+              name: "Orbis Scholar",
+              description: `${billingCycle === 'MONTHLY' ? 'Monthly' : 'Yearly'} Membership`,
+              image: "https://res.cloudinary.com/dnbwvwaoe/image/upload/v1763891408/social_zefj9u.png",
+              
+              handler: async function (response: any) {
+                  try {
+                      // Verify Subscription Payment
+                      const verifyResponse = await fetch(`${apiBase}/api/payment/verify-subscription`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                              razorpay_payment_id: response.razorpay_payment_id,
+                              razorpay_subscription_id: response.razorpay_subscription_id,
+                              razorpay_signature: response.razorpay_signature
+                          })
+                      });
+
+                      const verifyData = await verifyResponse.json();
+
+                      if (verifyData.success) {
+                          onUpgradeSuccess();
+                      } else {
+                          alert("Subscription verification failed: " + verifyData.error);
+                      }
+                  } catch (e) {
+                      console.error("Verification Error", e);
+                      alert("Server error during verification. Please contact support.");
+                  } finally {
+                      setLoading(false);
+                  }
+              },
+              prefill: {
+                  name: user?.name || "",
+                  email: user?.email || "",
+                  contact: "" 
+              },
+              theme: {
+                  color: "#ea580c"
+              },
+              modal: {
+                  ondismiss: function() {
+                      setLoading(false);
+                  }
+              }
+          };
+
           // @ts-ignore
           const rzp = new window.Razorpay(options);
+          
+          rzp.on('payment.failed', function (response: any){
+                console.error(response.error);
+                alert(`Payment Failed: ${response.error.description}`);
+                setLoading(false);
+          });
+
           rzp.open();
-      } catch (e) {
-          console.error("Razorpay Error", e);
-          alert("Failed to load payment gateway. Check connection.");
+
+      } catch (e: any) {
+          console.error("Payment Initiation Failed:", e);
           setLoading(false);
+
+          const isNetworkError = e.message && (
+              e.message.includes('Failed to fetch') || 
+              e.message.includes('NetworkError') ||
+              e.message.includes('Network request failed') ||
+              e.message.includes('Mixed Content')
+          );
+
+          if (isNetworkError && isLocal) {
+              const confirmSim = window.confirm(
+                  "Backend Server Unreachable (http://localhost:5000).\n\n" +
+                  "Ensure 'node server.js' is running in your terminal.\n\n" +
+                  "Would you like to SIMULATE a successful upgrade for development?"
+              );
+              if (confirmSim) onUpgradeSuccess();
+          } else {
+              alert(`Payment Error: ${e.message}`);
+          }
       }
   };
 
@@ -199,7 +293,7 @@ const PricingView: React.FC<PricingViewProps> = ({ onBack, onGetStarted, onUpgra
                   <ul className="space-y-4 mb-8 flex-1">
                       <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">Unlimited</span> Courses</li>
                       <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">AI</span> Grade Forecasting</li>
-                      <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">4K</span> Video Rendering</li>
+                      <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">4K</span> Video Export</li>
                       <li className="flex gap-3 text-sm font-medium"><span className="text-orange-500 material-symbols-rounded text-lg">check</span> <span className="font-bold">Exam Cram</span> Mode</li>
                   </ul>
                   
@@ -214,7 +308,7 @@ const PricingView: React.FC<PricingViewProps> = ({ onBack, onGetStarted, onUpgra
                           className="w-full py-4 bg-white dark:bg-black text-black dark:text-white rounded-full font-bold uppercase tracking-widest text-xs hover:bg-stone-200 dark:hover:bg-stone-800 transition-colors shadow-lg disabled:opacity-50 flex items-center justify-center gap-2"
                       >
                           {loading && <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></span>}
-                          {loading ? 'Processing...' : 'Upgrade Now'}
+                          {loading ? 'Processing...' : 'Subscribe Now'}
                       </button>
                   )}
               </div>
@@ -224,7 +318,7 @@ const PricingView: React.FC<PricingViewProps> = ({ onBack, onGetStarted, onUpgra
               <p className="text-xs text-stone-400 max-w-lg mx-auto leading-relaxed">
                   Prices in {currency}. Local taxes may apply. Cancel anytime.
                   <br/>
-                  <span className="opacity-50">Secure payment processing via {currency === 'INR' ? 'Razorpay' : 'Stripe'}.</span>
+                  <span className="opacity-50">Secure subscription processing via Razorpay.</span>
               </p>
           </div>
 

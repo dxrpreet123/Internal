@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { Course, ReelData, User, ChatMessage } from '../types';
 import { chatWithDashboardTutor } from '../services/geminiService';
@@ -33,7 +32,7 @@ const ClassroomView: React.FC<ClassroomViewProps> = ({ course, user, onBack, onO
 
   // -- RESOURCES STATE --
   const youtubeResources = course.reels.filter(r => r.youtubeResource).map(r => r.youtubeResource!);
-  const webResources = Array.from(new Set(course.reels.flatMap(r => r.sources || []).filter(s => s)));
+  const webResources = Array.from(new Set(course.reels.flatMap(r => r.sources || []).filter(s => s))) as Array<{ title: string; uri: string }>;
 
   // Calculate stats
   const completedCount = course.reels.filter(r => r.userQuizResult === true).length;
