@@ -1,0 +1,16 @@
+{
+  "name": "ananyas-financial-management",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A three-stage money plan for a PhD stipend, with a Claude advisor.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,0 +1,1433 @@
+<title>Ananya's Financial Management</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: an iOS-style grouped app. Translucent sticky bar, large titles, white cards on system grey.
+   Three stage colours (Safety teal, Growth green, Goals orange) run through the rings, bars and charts.
+   Phones get a bottom tab bar; wide screens get segmented tabs in the top bar. */
+:root{
+  --bg:#F2F2F7; --card:#FFFFFF; --fill:#F2F2F7; --fill-2:#E3E3E8; --seg-on:#FFFFFF;
+  --fg:#1C1C1E; --fg-2:#6C6C72; --fg-3:#AEAEB4; --sep:rgba(60,60,67,.14); --bar:rgba(246,246,249,.82);
+  --accent:#007AFF; --accent-ink:#0062CC; --on-accent:#FFFFFF; --accent-soft:rgba(0,122,255,.12);
+  --safety:#14A3B8; --safety-ink:#0B7A8B; --safety-soft:rgba(20,163,184,.13);
+  --growth:#2DB55D; --growth-ink:#1D8A43; --growth-soft:rgba(45,181,93,.16);
+  --goals:#FF9500; --goals-ink:#B05F00; --goals-soft:rgba(255,149,0,.14);
+  --needs:#5856D6; --wants:#D9559A; --gold:#D9A400; --danger:#FF3B30; --danger-ink:#D70015; --danger-soft:rgba(255,59,48,.1);
+  --shadow:0 1px 2px rgba(0,0,0,.05),0 6px 20px rgba(0,0,0,.04);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-display:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --font-num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  --r-card:22px; --r-ctl:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#000000; --card:#1C1C1E; --fill:#2C2C2E; --fill-2:#3A3A3C; --seg-on:#636366;
+    --fg:#F5F5F7; --fg-2:#9A9AA1; --fg-3:#636368; --sep:rgba(84,84,88,.6); --bar:rgba(18,18,20,.8);
+    --accent:#0A84FF; --accent-ink:#5AA9FF; --on-accent:#FFFFFF; --accent-soft:rgba(10,132,255,.2);
+    --safety:#3FC6DB; --safety-ink:#64D6E8; --safety-soft:rgba(63,198,219,.18);
+    --growth:#30D158; --growth-ink:#5BE07F; --growth-soft:rgba(48,209,88,.18);
+    --goals:#FF9F0A; --goals-ink:#FFB440; --goals-soft:rgba(255,159,10,.18);
+    --needs:#7D7AFF; --wants:#FF6FB5; --gold:#FFD426; --danger:#FF453A; --danger-ink:#FF6B61; --danger-soft:rgba(255,69,58,.16);
+    --shadow:none; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#000000; --card:#1C1C1E; --fill:#2C2C2E; --fill-2:#3A3A3C; --seg-on:#636366;
+  --fg:#F5F5F7; --fg-2:#9A9AA1; --fg-3:#636368; --sep:rgba(84,84,88,.6); --bar:rgba(18,18,20,.8);
+  --accent:#0A84FF; --accent-ink:#5AA9FF; --on-accent:#FFFFFF; --accent-soft:rgba(10,132,255,.2);
+  --safety:#3FC6DB; --safety-ink:#64D6E8; --safety-soft:rgba(63,198,219,.18);
+  --growth:#30D158; --growth-ink:#5BE07F; --growth-soft:rgba(48,209,88,.18);
+  --goals:#FF9F0A; --goals-ink:#FFB440; --goals-soft:rgba(255,159,10,.18);
+  --needs:#7D7AFF; --wants:#FF6FB5; --gold:#FFD426; --danger:#FF453A; --danger-ink:#FF6B61; --danger-soft:rgba(255,69,58,.16);
+  --shadow:none; color-scheme:dark;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.45 var(--font);-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+[hidden]{display:none!important}
+img{max-width:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px)}
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:.5px solid var(--sep)}
+.topbar-in{max-width:1040px;margin:0 auto;min-height:52px;display:flex;align-items:center;gap:16px;padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.brand{display:flex;align-items:center;gap:10px;min-width:0;font:600 16px/1.2 var(--font-display);letter-spacing:-.01em}
+.brand svg{flex:none}
+.brand span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .tabs-top{margin-left:auto;display:none}
+
+.wrap{max-width:1040px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:4px calc(104px + env(safe-area-inset-bottom,0px))}
+.view{display:grid;gap:16px;animation:rise .35s ease both}
+@keyframes rise{from{opacity:.4;transform:translateY(6px)}to{opacity:1;transform:none}}
+.vh{padding:18px 4px 2px}
+.eyebrow{margin:0 0 2px;font-size:13px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2)}
+h1{margin:0;font:700 34px/1.1 var(--font-display);letter-spacing:-.025em;text-wrap:balance}
+h2{margin:0;font:600 20px/1.25 var(--font-display);letter-spacing:-.015em;text-wrap:balance}
+h3{margin:20px 0 8px;font:600 13px/1.3 var(--font);letter-spacing:.04em;text-transform:uppercase;color:var(--fg-2)}
+p{margin:0}
+.sub{color:var(--fg-2);font-size:15px}
+.fine{color:var(--fg-2);font-size:13px;line-height:1.4}
+.num{font-family:var(--font-num);font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.xl{font-size:48px;line-height:1;font-weight:700;letter-spacing:-.03em}
+.md{font-size:20px;font-weight:600}
+
+.card{background:var(--card);border-radius:var(--r-card);padding:20px;display:grid;gap:12px;min-width:0;box-shadow:var(--shadow)}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.grid-2{display:grid;gap:16px;grid-template-columns:minmax(0,1fr)}
+.link{color:var(--accent-ink);text-decoration:none;font-size:15px;font-weight:500}
+.link:hover{text-decoration:underline}
+
+/* Hero */
+.hero{gap:8px;padding:22px 20px}
+.hero-num{display:flex;align-items:center;flex-wrap:wrap;gap:10px 12px;margin-top:4px}
+.pill{display:inline-flex;align-items:center;padding:5px 10px;border-radius:999px;font-size:13px;font-weight:600;background:var(--growth-soft);color:var(--growth-ink)}
+.pill.warn{background:var(--danger-soft);color:var(--danger-ink)}
+.stack{display:flex;gap:2px;height:14px;border-radius:7px;overflow:hidden;background:var(--fill);margin-top:10px}
+.stack span{display:block;height:100%;min-width:3px;transition:flex-grow .4s ease}
+.legend{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--fg-2)}
+.legend li{display:flex;align-items:center;gap:6px}
+.legend i{width:9px;height:9px;border-radius:50%;flex:none}
+.legend b{color:var(--fg);font-weight:600;font-variant-numeric:tabular-nums}
+.legend i.band{width:16px;height:10px;border-radius:3px}
+.legend i.line{width:16px;height:3px;border-radius:2px}
+.legend i.dash{width:16px;height:0;border-radius:0;border-top:2px dashed var(--fg-3)}
+.warn-text{color:var(--danger-ink);font-size:14px;font-weight:500}
+
+/* Focus card */
+.focus{background:var(--st-soft,var(--accent-soft));box-shadow:none;gap:6px}
+.focus .eyebrow{color:var(--st-ink,var(--accent-ink))}
+.focus p{font-size:15px}
+.focus .next{margin-top:6px;padding-top:10px;border-top:.5px solid var(--sep);font-size:14px;color:var(--fg-2)}
+.focus .next b{color:var(--fg);font-weight:600}
+
+/* Rings */
+.rings{display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.rings svg{flex:none}
+.ring-arc{transition:stroke-dashoffset .9s cubic-bezier(.3,.7,.2,1)}
+.ring-list{list-style:none;margin:0;padding:0;display:grid;gap:10px;flex:1;min-width:180px}
+.ring-list li{display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:10px}
+.ring-list i{width:10px;height:10px;border-radius:50%}
+.ring-list b{display:block;font-size:15px;font-weight:600}
+.ring-list span{display:block;font-size:13px;color:var(--fg-2);font-variant-numeric:tabular-nums}
+.ring-list em{font-style:normal;font:600 17px var(--font-num);font-variant-numeric:tabular-nums}
+
+/* Routine */
+.routine{list-style:none;margin:0;padding:0;display:grid}
+.routine li{display:grid;grid-template-columns:44px minmax(0,1fr);gap:12px;padding:10px 0;border-top:.5px solid var(--sep);align-items:center}
+.routine li:first-child{border-top:0;padding-top:2px}
+.cal{width:44px;height:44px;border-radius:10px;background:var(--card);box-shadow:inset 0 0 0 .5px var(--sep),0 1px 2px rgba(0,0,0,.06);display:grid;grid-template-rows:14px 1fr;overflow:hidden;text-align:center}
+.cal b{display:block;font-size:9px;line-height:14px;letter-spacing:.06em;font-weight:700;color:#fff;background:var(--danger)}
+.cal span{display:grid;place-items:center;font:600 15px/1 var(--font-num);letter-spacing:-.02em}
+.routine strong{display:block;font-size:15px;font-weight:600}
+.routine p{font-size:14px;color:var(--fg-2)}
+.streak{font-size:13px;font-weight:600;color:var(--growth-ink)}
+
+/* Buttons */
+.btn{appearance:none;border:0;border-radius:var(--r-ctl);padding:12px 16px;font-size:16px;font-weight:600;line-height:1.2;transition:transform .12s ease,opacity .12s ease,background .2s}
+.btn:active{transform:scale(.98)}
+.btn.primary{background:var(--accent);color:var(--on-accent)}
+.btn.done{background:var(--growth-soft);color:var(--growth-ink)}
+.btn.ghost{background:var(--fill);color:var(--accent-ink);justify-self:start}
+.btn.wide{width:100%}
+.btn.sm{padding:8px 12px;font-size:14px}
+.btn:disabled{opacity:.45;cursor:default}
+.textbtn{appearance:none;border:0;background:none;padding:0;color:var(--accent-ink);font-size:13px;font-weight:500;text-decoration:underline;text-underline-offset:2px}
+
+/* Fields */
+.row-field{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.row-field label{font-size:16px}
+.field{display:grid;gap:8px}
+.label{font-size:15px;color:var(--fg)}
+.label b{float:right;font:600 15px var(--font-num);color:var(--accent-ink)}
+.money-in{display:flex;align-items:center;gap:4px;background:var(--fill);border-radius:10px;padding:0 12px;height:42px;width:170px;max-width:100%;transition:box-shadow .15s}
+.money-in span{color:var(--fg-2);font-family:var(--font-num)}
+.money-in input{border:0;background:transparent;outline:none;width:100%;min-width:0;text-align:right;font:500 17px var(--font-num);font-variant-numeric:tabular-nums}
+.money-in:focus-within{box-shadow:0 0 0 2px var(--accent)}
+.money-in.sm{width:118px;height:38px;padding:0 10px}
+.money-in.sm input{font-size:16px}
+select{appearance:none;-webkit-appearance:none;border:0;background:var(--fill);border-radius:10px;height:38px;padding:0 30px 0 12px;font-size:15px;background-image:linear-gradient(45deg,transparent 50%,var(--fg-2) 50%),linear-gradient(135deg,var(--fg-2) 50%,transparent 50%);background-position:calc(100% - 16px) 16px,calc(100% - 11px) 16px;background-size:5px 5px;background-repeat:no-repeat}
+select:focus-visible{outline:2px solid var(--accent)}
+
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:transparent;margin:0;--p:50%}
+input[type=range]::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(90deg,var(--accent) var(--p),var(--fill-2) var(--p))}
+input[type=range]::-moz-range-track{height:4px;border-radius:2px;background:var(--fill-2)}
+input[type=range]::-moz-range-progress{height:4px;border-radius:2px;background:var(--accent)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;margin-top:-11px;border-radius:50%;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.2)}
+input[type=range]::-moz-range-thumb{width:26px;height:26px;border:0;border-radius:50%;background:#fff;box-shadow:0 0 0 .5px rgba(0,0,0,.08),0 2px 6px rgba(0,0,0,.2)}
+
+.seg{display:inline-flex;gap:2px;padding:2px;border-radius:10px;background:var(--fill-2);max-width:100%;overflow-x:auto;scrollbar-width:none;justify-self:start}
+.seg::-webkit-scrollbar{display:none}
+.seg button{appearance:none;border:0;background:transparent;border-radius:8px;padding:7px 14px;font-size:14px;font-weight:500;white-space:nowrap;transition:background .2s,box-shadow .2s}
+.seg button[aria-pressed="true"],.seg button[aria-selected="true"]{background:var(--seg-on);box-shadow:0 1px 3px rgba(0,0,0,.14),0 0 0 .5px rgba(0,0,0,.04);font-weight:600}
+
+/* Budget list */
+.exp-list,.goal-list{display:grid}
+.exp-row{display:grid;grid-template-columns:minmax(0,1fr) auto 32px;gap:10px;align-items:center;padding:10px 0;border-top:.5px solid var(--sep)}
+.exp-row:first-child{border-top:0}
+.exp-name,.goal-name{border:0;background:transparent;outline:none;padding:2px 0;font-size:16px;width:100%;min-width:0;border-radius:6px}
+.exp-name:focus,.goal-name:focus{background:var(--fill);box-shadow:0 0 0 4px var(--fill)}
+.kind{appearance:none;border:0;border-radius:999px;padding:3px 9px;margin-top:3px;font-size:12px;font-weight:600;letter-spacing:.02em}
+.kind[data-kind="need"]{background:rgba(88,86,214,.13);color:var(--needs)}
+.kind[data-kind="want"]{background:rgba(217,85,154,.13);color:var(--wants)}
+.del{appearance:none;border:0;background:transparent;width:32px;height:32px;border-radius:50%;color:var(--fg-3);font-size:22px;line-height:1;display:grid;place-items:center}
+.del:hover{background:var(--fill);color:var(--danger-ink)}
+.kpis{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:6px}
+.kpi{background:var(--fill);border-radius:14px;padding:12px}
+.kpi span{display:block;font-size:13px;color:var(--fg-2)}
+.kpi b{display:block;font:600 22px/1.2 var(--font-num);font-variant-numeric:tabular-nums}
+.note{font-size:14px;color:var(--fg-2);background:var(--fill);border-radius:14px;padding:12px 14px}
+.note b{color:var(--fg)}
+
+/* Stages */
+.stage{gap:12px}
+.stage-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;background:var(--st-soft);color:var(--st-ink);font-size:13px;font-weight:700;letter-spacing:.02em}
+.state{font-size:13px;font-weight:600;color:var(--fg-2)}
+.state.ok{color:var(--growth-ink)}
+.meter{height:10px;border-radius:5px;background:var(--fill);overflow:hidden}
+.meter span{display:block;height:100%;border-radius:5px;background:var(--st);width:0;transition:width .6s ease}
+.meter-label{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.meter-label .num{font-size:22px;font-weight:700}
+.fields{display:grid;gap:16px;padding:4px 0}
+.facts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.fact{background:var(--fill);border-radius:14px;padding:12px;min-width:0}
+.fact span{display:block;font-size:12px;color:var(--fg-2);line-height:1.3}
+.fact b{display:block;margin-top:2px;font:600 18px/1.2 var(--font-num);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.tiers{list-style:none;margin:0;padding:0;display:grid}
+.tiers li,.alloc-row{display:grid;grid-template-columns:10px minmax(0,1fr) auto;gap:12px;padding:12px 0;border-top:.5px solid var(--sep);align-items:start}
+.tiers li:first-child,.alloc-row:first-child{border-top:0}
+.tiers i,.alloc-row i{width:10px;height:10px;border-radius:50%;margin-top:6px}
+.tiers b,.alloc-row b{display:block;font-size:15px;font-weight:600}
+.tiers p,.alloc-row p{font-size:13px;color:var(--fg-2);margin-top:2px}
+.amt{text-align:right;white-space:nowrap}
+.amt .num{display:block;font-size:16px;font-weight:600}
+.amt small{display:block;font-size:12px;color:var(--fg-2)}
+.alloc{display:grid}
+.callout{font-size:14px;background:var(--st-soft);color:var(--fg);border-radius:14px;padding:12px 14px}
+
+.checks{list-style:none;margin:0;padding:0;display:grid}
+.check{display:grid;grid-template-columns:28px minmax(0,1fr);gap:12px;padding:12px 0;border-top:.5px solid var(--sep)}
+.check:first-child{border-top:0}
+.tick{appearance:none;width:26px;height:26px;border-radius:50%;border:1.5px solid var(--fg-3);background:transparent;padding:0;display:grid;place-items:center;color:transparent;transition:background .2s,border-color .2s}
+.tick svg{width:14px;height:14px}
+.check.done .tick{background:var(--goals);border-color:var(--goals);color:#fff}
+.check.done b{color:var(--fg-2);text-decoration:line-through;text-decoration-color:var(--fg-3)}
+.when{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--goals-ink)}
+.check b{display:block;font-size:15px;font-weight:600;margin-top:1px}
+.check p{font-size:13px;color:var(--fg-2);margin-top:2px}
+.goal-row{display:grid;gap:8px;padding:12px 0;border-top:.5px solid var(--sep)}
+.goal-row:first-child{border-top:0}
+.goal-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.goal-need{font-size:13px;color:var(--fg-2)}
+.goal-need b{color:var(--fg)}
+.goal-need.late b{color:var(--danger-ink)}
+
+/* Windfall */
+.split{display:grid;gap:8px;grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+.split .piece{border-radius:14px;padding:12px;background:var(--fill);display:grid;gap:2px}
+.piece span{font-size:13px;color:var(--fg-2);display:flex;align-items:center;gap:6px}
+.piece span i{width:8px;height:8px;border-radius:50%}
+.piece b{font:600 20px var(--font-num);font-variant-numeric:tabular-nums}
+.piece p{font-size:12px;color:var(--fg-2)}
+
+/* Grow */
+.controls{display:grid;gap:14px}
+.tiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.tile{background:var(--fill);border-radius:14px;padding:12px 14px;min-width:0}
+.tile span{display:block;font-size:12px;color:var(--fg-2)}
+.tile b{display:block;font:700 22px/1.2 var(--font-num);font-variant-numeric:tabular-nums;margin-top:2px}
+.tile.main b{color:var(--growth-ink)}
+.chart{width:100%;min-height:220px;position:relative}
+.chart svg{display:block;width:100%;overflow:visible}
+.ax{fill:var(--fg-2);font:11px var(--font);font-variant-numeric:tabular-nums}
+.grid-l{stroke:var(--sep);stroke-width:1}
+.band{fill:var(--growth-soft)}
+.mid{fill:none;stroke:var(--growth);stroke-width:2.5;stroke-linejoin:round;stroke-linecap:round}
+.inv{fill:none;stroke:var(--fg-3);stroke-width:1.5;stroke-dasharray:4 4}
+.dot{fill:var(--growth);stroke:var(--card);stroke-width:2}
+.endlabel{fill:var(--fg);font:600 12px var(--font-num)}
+.levers{list-style:none;margin:0;padding:0;display:grid}
+.levers li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;padding:12px 0;border-top:.5px solid var(--sep);align-items:center}
+.levers li:first-child{border-top:0}
+.levers b{display:block;font-size:15px;font-weight:600}
+.levers p{font-size:13px;color:var(--fg-2);margin-top:2px}
+.delta{font:600 16px var(--font-num);font-variant-numeric:tabular-nums;white-space:nowrap}
+.delta.up{color:var(--growth-ink)}
+.delta.down{color:var(--danger-ink)}
+.table-wrap{overflow-x:auto;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:8px 10px;border-bottom:.5px solid var(--sep);white-space:nowrap}
+th{font-size:12px;color:var(--fg-2);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+td.r,th.r{text-align:right}
+
+/* Chat */
+.chat{gap:14px}
+.chat-log{display:flex;flex-direction:column;gap:10px;min-height:200px;max-height:58vh;overflow-y:auto;overscroll-behavior:contain;padding:2px}
+.msg{max-width:88%;padding:10px 14px;border-radius:20px;font-size:15px;line-height:1.5;min-width:0;overflow-wrap:anywhere}
+.msg.user{align-self:flex-end;background:var(--accent);color:var(--on-accent);border-bottom-right-radius:6px;white-space:pre-wrap}
+.msg.ai{align-self:flex-start;background:var(--fill);border-bottom-left-radius:6px}
+.msg.ai p+p,.msg.ai p+ul,.msg.ai ul+p,.msg.ai p+ol,.msg.ai ol+p,.msg.ai h4+p,.msg.ai .table-wrap+p{margin-top:8px}
+.msg.ai ul,.msg.ai ol{margin:6px 0 0;padding-left:20px}
+.msg.ai li+li{margin-top:3px}
+.msg.ai h4{margin:10px 0 4px;font-size:15px}
+.msg.ai a{color:var(--accent-ink)}
+.msg.ai code{font-size:13px;background:var(--fill-2);padding:1px 5px;border-radius:5px}
+.msg.ai table{font-size:13px;margin-top:8px}
+.msg.thinking{color:var(--fg-2)}
+.msg.thinking::after{content:"";display:inline-block;width:1.2em;text-align:left;animation:dots 1.2s steps(4) infinite}
+@keyframes dots{0%{content:""}25%{content:"."}50%{content:".."}75%{content:"..."}}
+.msg .err{display:block;margin-top:6px;font-size:13px;color:var(--danger-ink)}
+.chips{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.chips::-webkit-scrollbar{display:none}
+.chip{appearance:none;flex:none;border:.5px solid var(--sep);background:var(--card);border-radius:999px;padding:8px 14px;font-size:14px;color:var(--accent-ink);white-space:nowrap}
+.chip:hover{background:var(--fill)}
+.chip:disabled{opacity:.45}
+.composer{display:flex;align-items:flex-end;gap:8px;background:var(--fill);border-radius:22px;padding:6px 6px 6px 16px}
+.composer textarea{flex:1;min-width:0;border:0;background:transparent;outline:none;resize:none;font-size:16px;line-height:1.4;padding:6px 0;max-height:140px}
+.send,.stop{appearance:none;border:0;flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--accent);color:var(--on-accent)}
+.send:disabled{background:var(--fill-2);color:var(--fg-3)}
+.stop{background:var(--fg);color:var(--card)}
+.pass{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.pass input{border:0;background:var(--fill);border-radius:10px;height:38px;padding:0 12px;font-size:16px;min-width:0;flex:1}
+
+.foot{display:grid;gap:8px;padding:28px 4px 8px;color:var(--fg-2);font-size:12px;line-height:1.5;max-width:68ch}
+
+/* Tab bars */
+.tabbar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-top:.5px solid var(--sep);padding-top:6px;padding-bottom:calc(6px + env(safe-area-inset-bottom,0px));padding-left:max(8px,env(safe-area-inset-left,0px));padding-right:max(8px,env(safe-area-inset-right,0px))}
+.tabbar button{appearance:none;border:0;background:transparent;display:grid;justify-items:center;gap:2px;padding:4px 0;color:var(--fg-2);font-size:10.5px;font-weight:500;letter-spacing:.01em}
+.tabbar button svg{width:26px;height:26px}
+.tabbar button[aria-selected="true"]{color:var(--accent)}
+
+@media (min-width:760px){
+  .grid-2{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .tiles{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .card{padding:24px}
+  .controls{grid-template-columns:repeat(3,auto);justify-content:start;column-gap:28px}
+  .fields{grid-template-columns:repeat(2,minmax(0,1fr));align-items:end}
+}
+@media (min-width:860px){
+  .topbar .tabs-top{display:inline-flex}
+  .tabbar{display:none}
+  .wrap{padding-block:8px 48px}
+  h1{font-size:40px}
+}
+@media (max-width:400px){
+  .facts{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .kpi b{font-size:19px}
+  .xl{font-size:42px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+        <circle cx="13" cy="13" r="11" fill="none" style="stroke:var(--safety)" stroke-width="3" stroke-dasharray="52 70" stroke-linecap="round" transform="rotate(-90 13 13)"/>
+        <circle cx="13" cy="13" r="6.5" fill="none" style="stroke:var(--growth)" stroke-width="3" stroke-dasharray="28 41" stroke-linecap="round" transform="rotate(-90 13 13)"/>
+        <circle cx="13" cy="13" r="2.2" style="fill:var(--goals)"/>
+      </svg>
+      <span>Ananya's Financial Management</span>
+    </div>
+    <nav class="seg tabs-top" role="tablist" aria-label="Sections">
+      <button type="button" role="tab" data-tab="today">Today</button>
+      <button type="button" role="tab" data-tab="budget">Budget</button>
+      <button type="button" role="tab" data-tab="plan">Plan</button>
+      <button type="button" role="tab" data-tab="grow">Grow</button>
+      <button type="button" role="tab" data-tab="ask">Ask</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <!-- TODAY -->
+  <section class="view" id="view-today" data-view="today" aria-labelledby="h-today">
+    <header class="vh"><p class="eyebrow" id="today-date">This month</p><h1 id="h-today">Today</h1></header>
+
+    <article class="card hero">
+      <p class="sub" id="hero-land">₹37,500 lands between the 1st and 3rd</p>
+      <div class="hero-num"><span class="num xl" id="hero-save">₹12,800</span><span class="pill" id="hero-rate">34% of stipend</span></div>
+      <p class="sub" id="hero-cap">to save and invest this month</p>
+      <div class="stack" id="hero-stack" aria-hidden="true"></div>
+      <ul class="legend" id="hero-legend"></ul>
+    </article>
+
+    <article class="card focus" id="focus"></article>
+
+    <div class="grid-2">
+      <article class="card">
+        <div class="card-head"><h2>Three stages</h2><a class="link" href="#plan" data-tab="plan">See plan</a></div>
+        <div class="rings">
+          <svg id="rings" viewBox="0 0 132 132" width="132" height="132" role="img" aria-label="Progress on the three stages"></svg>
+          <ul class="ring-list" id="ring-list"></ul>
+        </div>
+      </article>
+      <article class="card">
+        <div class="card-head"><h2>Payday routine</h2><span class="streak" id="streak"></span></div>
+        <ol class="routine" id="routine"></ol>
+        <button class="btn primary wide" id="mark-month" type="button">Mark this month's transfers done</button>
+        <p class="fine" id="mark-note"></p>
+      </article>
+    </div>
+
+    <article class="card">
+      <h2>Got extra money?</h2>
+      <p class="sub">Arrears after a stipend revision, a prize, a gift, TA work. Enter the amount for a split that fits your current stage.</p>
+      <div class="row-field"><label for="wf-amt">Amount</label><div class="money-in"><span>₹</span><input id="wf-amt" class="money" type="text" inputmode="numeric" autocomplete="off" value="20,000"></div></div>
+      <div class="split" id="wf-out"></div>
+      <p class="fine">Reimbursements are different: refill whatever paid for the trip or purchase first.</p>
+    </article>
+  </section>
+
+  <!-- BUDGET -->
+  <section class="view" id="view-budget" data-view="budget" aria-labelledby="h-budget" hidden>
+    <header class="vh"><p class="eyebrow">Every rupee gets a job</p><h1 id="h-budget">Budget</h1></header>
+
+    <article class="card">
+      <div class="row-field"><label for="in-income">Monthly stipend</label><div class="money-in"><span>₹</span><input id="in-income" class="money" data-k="income" type="text" inputmode="numeric" autocomplete="off"></div></div>
+      <p class="fine">Fellowship credited between the 1st and 3rd. When it changes (JRF to SRF, an HRA revision), update it here and the whole plan follows.</p>
+    </article>
+
+    <article class="card">
+      <div class="card-head"><h2>Monthly spending</h2><span class="num md" id="b-total"></span></div>
+      <p class="fine">Starter numbers for a scholar living off campus. Replace them with real bills. Tap Need or Want to switch a category.</p>
+      <div class="exp-list" id="exp-list"></div>
+      <button class="btn ghost" id="add-exp" type="button">Add a category</button>
+    </article>
+
+    <article class="card">
+      <h2>Where the stipend goes</h2>
+      <div class="stack" id="b-stack" aria-hidden="true"></div>
+      <ul class="legend" id="b-legend"></ul>
+      <div class="kpis" id="b-kpis"></div>
+      <p class="note" id="b-note"></p>
+    </article>
+  </section>
+
+  <!-- PLAN -->
+  <section class="view" id="view-plan" data-view="plan" aria-labelledby="h-plan" hidden>
+    <header class="vh"><p class="eyebrow">Three stages, in order</p><h1 id="h-plan">Plan</h1></header>
+
+    <article class="card stage" style="--st:var(--safety);--st-ink:var(--safety-ink);--st-soft:var(--safety-soft)">
+      <div class="stage-top"><span class="badge">Stage 1</span><span class="state" id="s1-state"></span></div>
+      <h2>Safety Fund</h2>
+      <p class="sub">Money you can reach within a day: a hospital bill, a dead laptop, a delayed stipend. It comes first, so you never have to sell investments in a crash or borrow on a card.</p>
+      <div class="meter" aria-hidden="true"><span id="s1-bar"></span></div>
+      <p class="meter-label"><span class="num" id="s1-have">₹0</span><span class="sub" id="s1-of"></span></p>
+      <div class="fields">
+        <div class="field"><span class="label">Target</span>
+          <div class="seg" role="group" aria-label="Safety Fund target" data-group="efTarget">
+            <button type="button" data-val="100000">₹1L</button><button type="button" data-val="150000">₹1.5L</button><button type="button" data-val="200000">₹2L</button>
+          </div>
+        </div>
+        <div class="row-field"><label for="in-ef">Saved so far</label><div class="money-in"><span>₹</span><input id="in-ef" class="money" data-k="efBalance" type="text" inputmode="numeric" autocomplete="off"></div></div>
+        <div class="field"><label class="label" for="in-efshare">Share of monthly savings <b id="efshare-val"></b></label><input type="range" id="in-efshare" data-k="efShare" min="50" max="100" step="5"></div>
+      </div>
+      <div class="facts" id="s1-facts"></div>
+      <h3>Where to keep it</h3>
+      <ul class="tiers" id="s1-tiers"></ul>
+    </article>
+
+    <article class="card stage" style="--st:var(--growth);--st-ink:var(--growth-ink);--st-soft:var(--growth-soft)">
+      <div class="stage-top"><span class="badge">Stage 2</span><span class="state" id="s2-state"></span></div>
+      <h2>Compounding</h2>
+      <p class="sub">A monthly SIP into a few low-cost funds, left alone for ten years or more. It starts small while Stage 1 fills, then takes the full amount.</p>
+      <div class="facts" id="s2-facts"></div>
+      <div class="field"><span class="label">Mix</span>
+        <div class="seg" role="group" aria-label="Portfolio mix" data-group="mix">
+          <button type="button" data-val="steady">Steady</button><button type="button" data-val="balanced">Balanced</button><button type="button" data-val="growth">Growth</button>
+        </div>
+      </div>
+      <p class="fine" id="mix-note"></p>
+      <p class="callout" id="s2-now" hidden></p>
+      <div class="alloc" id="alloc"></div>
+      <div class="row-field"><label for="in-inv">Current value of investments</label><div class="money-in"><span>₹</span><input id="in-inv" class="money" data-k="invested" type="text" inputmode="numeric" autocomplete="off"></div></div>
+      <p class="fine">Check your fund app once a month and update this. It will move up and down with the market; that is normal.</p>
+    </article>
+
+    <article class="card stage" style="--st:var(--goals);--st-ink:var(--goals-ink);--st-soft:var(--goals-soft)">
+      <div class="stage-top"><span class="badge">Stage 3</span><span class="state" id="s3-state"></span></div>
+      <h2>Goals and credit</h2>
+      <p class="sub">Runs alongside Stage 2. Build a credit score from zero, and save for things one to three years away. Big, far-off goals like a home down payment belong in the Stage 2 SIP.</p>
+      <h3>Credit score roadmap</h3>
+      <ol class="checks" id="credit"></ol>
+      <h3>Goals pot</h3>
+      <div class="field"><label class="label" for="in-goalshare">Share of savings once Stage 1 is done <b id="goalshare-val"></b></label><input type="range" id="in-goalshare" data-k="goalShare" min="0" max="40" step="5"></div>
+      <div class="row-field"><label for="in-gbal">In the goals pot now</label><div class="money-in"><span>₹</span><input id="in-gbal" class="money" data-k="goalsBalance" type="text" inputmode="numeric" autocomplete="off"></div></div>
+      <div class="goal-list" id="goal-list"></div>
+      <button class="btn ghost" id="add-goal" type="button">Add a goal</button>
+      <p class="note" id="goal-note"></p>
+    </article>
+  </section>
+
+  <!-- GROW -->
+  <section class="view" id="view-grow" data-view="grow" aria-labelledby="h-grow" hidden>
+    <header class="vh"><p class="eyebrow">What the SIP could become</p><h1 id="h-grow">Grow</h1></header>
+
+    <article class="card">
+      <div class="controls">
+        <div class="field"><span class="label">Years</span>
+          <div class="seg" role="group" aria-label="Years" data-group="horizon">
+            <button type="button" data-val="5">5</button><button type="button" data-val="10">10</button><button type="button" data-val="15">15</button><button type="button" data-val="20">20</button><button type="button" data-val="25">25</button>
+          </div>
+        </div>
+        <div class="field"><span class="label">Raise the SIP every year by</span>
+          <div class="seg" role="group" aria-label="Yearly step-up" data-group="stepUp">
+            <button type="button" data-val="0">0%</button><button type="button" data-val="5">5%</button><button type="button" data-val="10">10%</button><button type="button" data-val="15">15%</button>
+          </div>
+        </div>
+        <div class="field"><span class="label">Mix</span>
+          <div class="seg" role="group" aria-label="Portfolio mix" data-group="mix">
+            <button type="button" data-val="steady">Steady</button><button type="button" data-val="balanced">Balanced</button><button type="button" data-val="growth">Growth</button>
+          </div>
+        </div>
+      </div>
+      <div class="tiles" id="g-tiles"></div>
+      <div class="chart" id="fan" role="img" aria-label="Projected portfolio value with a range of outcomes"></div>
+      <ul class="legend">
+        <li><i class="band" style="background:var(--growth-soft)"></i>8 in 10 outcomes land in the band</li>
+        <li><i class="line" style="background:var(--growth)"></i>Likely path</li>
+        <li><i class="dash"></i>What you put in</li>
+      </ul>
+      <p class="fine" id="g-note"></p>
+    </article>
+
+    <article class="card">
+      <h2>What actually moves the number</h2>
+      <p class="sub">On ₹10–15K a month, which fund you pick matters less than these.</p>
+      <ul class="levers" id="levers"></ul>
+    </article>
+
+    <article class="card">
+      <h2>How bumpy it gets</h2>
+      <p id="stress"></p>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>In this mix</th><th class="r">Share</th><th class="r">Long-run return</th><th class="r">Typical yearly swing</th></tr></thead>
+          <tbody id="assump"></tbody>
+        </table>
+      </div>
+      <p class="fine">Long-run assumptions in rupee terms, not promises. The projection runs 600 random market paths month by month; the band is the middle 80% of them.</p>
+    </article>
+  </section>
+
+  <!-- ASK -->
+  <section class="view" id="view-ask" data-view="ask" aria-labelledby="h-ask" hidden>
+    <header class="vh"><p class="eyebrow">Claude, with your plan in view</p><h1 id="h-ask">Ask</h1></header>
+    <article class="card chat">
+      <div class="chat-log" id="chat-log" aria-live="polite"></div>
+      <div class="chips" id="chips"></div>
+      <form class="composer" id="composer" autocomplete="off">
+        <label class="sr" for="chat-in">Message</label>
+        <textarea id="chat-in" rows="1" placeholder="Ask about funds, your budget, credit…"></textarea>
+        <button class="send" id="chat-send" type="submit" aria-label="Send" disabled>
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 13V3M3.5 7.5 8 3l4.5 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="stop" id="chat-stop" type="button" aria-label="Stop" hidden>
+          <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1" y="1" width="10" height="10" rx="2" fill="currentColor"/></svg>
+        </button>
+      </form>
+      <div class="pass" id="pass-row" hidden><label for="chat-pass">Advisor passcode</label><input id="chat-pass" type="password" autocomplete="off"></div>
+      <p class="fine" id="chat-status">Connecting to Claude…</p>
+      <button class="btn ghost sm" id="chat-clear" type="button" hidden>Clear conversation</button>
+    </article>
+  </section>
+
+  <footer class="foot">
+    <p>Educational guidance for planning, not advice from a SEBI-registered investment adviser. Returns shown are assumptions, not promises. Check a fund's details on AMFI or the fund house's site before investing.</p>
+    <p><span id="sync">Saved in this browser</span> · <button class="textbtn" id="reset" type="button">Reset to starter numbers</button></p>
+  </footer>
+</main>
+
+<nav class="tabbar" role="tablist" aria-label="Sections">
+  <button type="button" role="tab" data-tab="today"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r=".9" fill="currentColor"/></svg>Today</button>
+  <button type="button" role="tab" data-tab="budget"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><path d="M15.5 14.5h2"/><path d="M6 6l9-2.5L16.5 6"/></svg>Budget</button>
+  <button type="button" role="tab" data-tab="plan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 20.5 8 12 12.5 3.5 8z"/><path d="M3.5 12 12 16.5 20.5 12"/><path d="M3.5 16 12 20.5 20.5 16"/></svg>Plan</button>
+  <button type="button" role="tab" data-tab="grow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 19.5h16"/><path d="M5 15.5l4.5-4.5 3 3L19 7.5"/><path d="M15 7.5h4v4"/></svg>Grow</button>
+  <button type="button" role="tab" data-tab="ask"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11.5a7.5 7.5 0 0 1-10.9 6.7L4.5 19.5l1.3-4A7.5 7.5 0 1 1 20 11.5z"/><path d="M9 11.5h.01M12.5 11.5h.01M16 11.5h.01"/></svg>Ask</button>
+</nav>
+
+<script>
+(function () {
+'use strict';
+
+/* ---------- small helpers ---------- */
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
+const sum = a => a.reduce((s, x) => s + x, 0);
+const r100 = n => Math.round(n / 100) * 100;
+const f100 = n => Math.floor(n / 100) * 100;
+const num = v => { const n = parseInt(String(v).replace(/[^\d]/g, ''), 10); return Number.isFinite(n) ? Math.min(n, 1e9) : 0; };
+const grp = n => Math.round(n).toLocaleString('en-IN');
+const inr = n => (n < 0 ? '−' : '') + '₹' + grp(Math.abs(n));
+const trimNum = x => { const s = x >= 100 ? x.toFixed(0) : x >= 10 ? x.toFixed(1) : x.toFixed(2); return s.includes('.') ? s.replace(/\.?0+$/, '') : s; };
+const short = n => {
+  const a = Math.abs(n), sg = n < 0 ? '−' : '';
+  if (a >= 1e7) return sg + '₹' + trimNum(a / 1e7) + 'Cr';
+  if (a >= 1e5) return sg + '₹' + trimNum(a / 1e5) + 'L';
+  if (a >= 1e3) return sg + '₹' + trimNum(a / 1e3) + 'K';
+  return sg + '₹' + Math.round(a);
+};
+const pct = x => Math.round(x * 100) + '%';
+const uid = () => Math.random().toString(36).slice(2, 9);
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const MONTH = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const NOW = new Date();
+const BASE = new Date(NOW.getFullYear(), NOW.getMonth(), 1);
+const addM = n => new Date(BASE.getFullYear(), BASE.getMonth() + n, 1);
+const ymOf = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+const THIS = ymOf(BASE);
+const monLabel = d => MON[d.getMonth()] + ' ' + d.getFullYear();
+const monthsUntil = ym => { const [y, m] = String(ym).split('-').map(Number); return (y - BASE.getFullYear()) * 12 + (m - 1 - BASE.getMonth()); };
+const ymLabel = ym => { const [y, m] = String(ym).split('-').map(Number); return MON[(m - 1 + 12) % 12] + ' ' + y; };
+
+/* ---------- investing assumptions ---------- */
+const ASSETS = {
+  nifty: { name: 'Nifty 50 index fund', cagr: 0.11, vol: 0.17, color: 'var(--growth)',
+    why: "The core: India's 50 largest companies in one fund. Pick a direct plan with a low expense ratio (roughly 0.1–0.3%) and low tracking error." },
+  next: { name: 'Nifty Next 50 or flexi-cap fund', cagr: 0.12, vol: 0.21, color: 'var(--safety)',
+    why: 'The next tier of big companies for extra growth. An index version keeps costs low; a flexi-cap fund lets a manager move across company sizes for a higher fee.' },
+  mid: { name: 'Nifty Midcap 150 index fund', cagr: 0.13, vol: 0.25, color: 'var(--wants)',
+    why: 'Faster growth and deeper falls; 30–50% drops have happened. Only for money you will not touch for seven years or more.' },
+  gold: { name: 'Gold ETF or gold fund', cagr: 0.09, vol: 0.15, color: 'var(--gold)',
+    why: 'Often rises when stock markets panic, so it cushions crashes. A gold ETF needs a demat account; a gold fund of funds does not. No new Sovereign Gold Bonds have been issued since February 2024.' },
+  debt: { name: 'PPF or short-duration debt fund', cagr: 0.07, vol: 0.02, color: 'var(--needs)',
+    why: 'The steady part. PPF is tax-free with a 15-year lock-in and partial withdrawals from year seven. A short-duration debt fund stays liquid, but its gains are taxed at your slab rate.' }
+};
+const MIXES = {
+  steady: { label: 'Steady', note: 'Smaller swings, slower growth. Suits someone who would lose sleep over a 20% fall.', w: { nifty: 45, gold: 20, debt: 35 } },
+  balanced: { label: 'Balanced', note: 'A sensible default for ten years or more: mostly Indian equity, with gold and PPF to soften crashes.', w: { nifty: 50, next: 15, gold: 15, debt: 20 } },
+  growth: { label: 'Growth', note: 'Bigger swings for more growth. Only with a full Safety Fund and the nerve to keep investing through a crash.', w: { nifty: 50, next: 15, mid: 15, gold: 10, debt: 10 } }
+};
+const EQ = { nifty: 1, next: 1, mid: 1 };
+const rho = (a, b) => a === b ? 1 : (EQ[a] && EQ[b]) ? 0.85 : (a === 'debt' || b === 'debt') ? 0.1 : 0.05;
+function port(key) {
+  const w = (MIXES[key] || MIXES.balanced).w, ks = Object.keys(w);
+  let mu = 0, v = 0;
+  ks.forEach(i => { mu += w[i] / 100 * ASSETS[i].cagr; ks.forEach(j => { v += (w[i] / 100) * (w[j] / 100) * ASSETS[i].vol * ASSETS[j].vol * rho(i, j); }); });
+  const eq = ks.reduce((s, k) => s + (EQ[k] ? w[k] : 0), 0) / 100;
+  return { mu, sd: Math.sqrt(v), eq, gold: (w.gold || 0) / 100, debt: (w.debt || 0) / 100 };
+}
+
+const CREDIT = [
+  { id: 'report', when: 'This month', title: 'Check your credit report', body: 'Pull your free CIBIL report from cibil.com or your bank app. A blank file shows "NH" or "-1". That is normal if you have never borrowed.' },
+  { id: 'fd', when: 'Safety Fund reaches ₹25,000', title: 'Open a ₹25,000 FD', body: 'The FD stays part of your Safety Fund and keeps earning interest. It becomes the security for your first card, so you start building history a year earlier.' },
+  { id: 'card', when: 'Right after', title: 'Get an FD-backed credit card', body: 'Most banks issue a secured card against an FD, with a limit of about 80–90% of the deposit. No salary slip needed. Pick one with no annual fee.' },
+  { id: 'autopay', when: 'The day the card arrives', title: 'Put one fixed bill on it and set autopay to the total due', body: 'Your phone bill or one subscription. Keep spending under 30% of the limit, ideally under 10%. Never pay only the minimum due.' },
+  { id: 'score', when: 'About 6 months in', title: 'Check your first score', body: 'Aim for 750 or more. A single late payment can cost a lot of points, which is why autopay matters more than anything else here.' },
+  { id: 'upgrade', when: '12–18 months in', title: 'Ask for a higher limit or a regular card', body: 'Space card applications at least six months apart. Keep the first card open: the age of your oldest account counts toward your score.' },
+  { id: 'loan', when: '3–5 years', title: 'Home-loan ready', body: 'A 750+ score, low card use, no missed payments, and a down payment growing in Stage 2. Lenders usually want 10–25% of the price upfront.' }
+];
+const MILESTONES = [100000, 250000, 500000, 1000000, 2500000, 5000000, 10000000, 25000000, 50000000];
+
+/* ---------- state ---------- */
+const LS = 'afm.plan.v1';
+const EXP0 = [
+  ['rent', 'Rent', 10000, 'need'], ['groceries', 'Groceries', 5000, 'need'], ['utilities', 'Electricity, water and gas', 1200, 'need'],
+  ['phone', 'Phone and internet', 800, 'need'], ['transport', 'Transport', 1500, 'need'], ['health', 'Health and medicines', 700, 'need'],
+  ['food', 'Eating out and fun', 2500, 'want'], ['personal', 'Clothes and personal care', 1000, 'want'], ['subs', 'Subscriptions', 500, 'want'],
+  ['misc', 'Miscellaneous', 1500, 'want']
+];
+function fresh() {
+  return {
+    v: 1, updatedAt: 0, income: 37500,
+    expenses: EXP0.map(([id, name, amt, kind]) => ({ id, name, amt, kind })),
+    efTarget: 150000, efBalance: 0, efShare: 70,
+    invested: 0, mix: 'balanced', stepUp: 10, horizon: 15,
+    goalShare: 20, goalsBalance: 0,
+    goals: [{ id: 'g1', name: 'New laptop', amt: 45000, by: ymOf(addM(36)) }],
+    credit: {}, log: {}
+  };
+}
+function migrate(o) {
+  const d = fresh();
+  if (!o || typeof o !== 'object') return d;
+  const n = (v, def, lo, hi) => Number.isFinite(+v) ? clamp(Math.round(+v), lo, hi) : def;
+  return {
+    v: 1,
+    updatedAt: n(o.updatedAt, 0, 0, 9e15),
+    income: n(o.income, d.income, 0, 1e8),
+    expenses: Array.isArray(o.expenses) ? o.expenses.filter(e => e && typeof e === 'object').slice(0, 40).map(e => ({
+      id: String(e.id || uid()).slice(0, 20), name: String(e.name || 'Category').slice(0, 60), amt: n(e.amt, 0, 0, 1e8), kind: e.kind === 'need' ? 'need' : 'want'
+    })) : d.expenses,
+    efTarget: n(o.efTarget, d.efTarget, 0, 1e9), efBalance: n(o.efBalance, 0, 0, 1e9), efShare: n(o.efShare, d.efShare, 0, 100),
+    invested: n(o.invested, 0, 0, 1e10), mix: MIXES[o.mix] ? o.mix : d.mix,
+    stepUp: [0, 5, 10, 15].includes(+o.stepUp) ? +o.stepUp : d.stepUp,
+    horizon: [5, 10, 15, 20, 25].includes(+o.horizon) ? +o.horizon : d.horizon,
+    goalShare: n(o.goalShare, d.goalShare, 0, 100), goalsBalance: n(o.goalsBalance, 0, 0, 1e9),
+    goals: Array.isArray(o.goals) ? o.goals.filter(g => g && typeof g === 'object').slice(0, 20).map(g => ({
+      id: String(g.id || uid()).slice(0, 20), name: String(g.name || 'Goal').slice(0, 60), amt: n(g.amt, 0, 0, 1e9),
+      by: /^\d{4}-\d{2}$/.test(g.by) ? g.by : ymOf(addM(24))
+    })) : d.goals,
+    credit: (o.credit && typeof o.credit === 'object') ? Object.fromEntries(CREDIT.filter(c => o.credit[c.id]).map(c => [c.id, true])) : {},
+    log: (o.log && typeof o.log === 'object') ? Object.fromEntries(Object.entries(o.log).filter(([k, v]) => /^\d{4}-\d{2}$/.test(k) && v && typeof v === 'object').slice(-120)
+      .map(([k, v]) => [k, { ef: n(v.ef, 0, 0, 1e9), sip: n(v.sip, 0, 0, 1e9), goal: n(v.goal, 0, 0, 1e9) }])) : {}
+  };
+}
+function loadLocal() { try { const raw = localStorage.getItem(LS); return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+function saveLocal() { try { localStorage.setItem(LS, JSON.stringify(S)); } catch (e) { /* storage unavailable */ } }
+
+let S = migrate(loadLocal());
+let D = null;
+
+/* Optional sync to the viewer's Claude account (when this page runs as a Claude artifact). */
+const cloud = {
+  ref: null, writing: false, again: false, timer: 0,
+  async init() {
+    if (!window.claude || typeof window.claude.use !== 'function') return;
+    try {
+      const [db, user] = await Promise.all([window.claude.use('db'), window.claude.use('user')]);
+      if (!db || !user) return;
+      const id = await user.id();
+      if (!id) return;
+      const ref = db.doc('data/users/' + id + '/plan');
+      const snap = await Promise.race([ref.get(), new Promise((_, rej) => setTimeout(() => rej({ code: 'timeout' }), 10000))]);
+      this.ref = ref;
+      if (snap.exists) {
+        const remote = migrate(JSON.parse(JSON.stringify(snap.data())));
+        if ((remote.updatedAt || 0) > (S.updatedAt || 0)) { S = remote; saveLocal(); hydrate(); renderAll(); }
+        else if ((S.updatedAt || 0) > (remote.updatedAt || 0)) this.queue();
+      } else if (S.updatedAt > 0) {
+        this.queue();
+      }
+      setSync('Saved to your Claude account');
+    } catch (e) {
+      this.ref = null;
+    }
+  },
+  queue() { if (!this.ref) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.flush(), 900); },
+  async flush() {
+    if (!this.ref) return;
+    if (this.writing) { this.again = true; return; }
+    this.writing = true;
+    try { await this.ref.set(JSON.parse(JSON.stringify(S))); setSync('Saved to your Claude account'); }
+    catch (e) { if (e && (e.code === 'invalid_argument' || e.code === 'revoked' || e.code === 'not_granted')) { this.ref = null; setSync('Saved in this browser'); } }
+    finally { this.writing = false; if (this.again) { this.again = false; this.flush(); } }
+  }
+};
+function setSync(t) { const el = $('#sync'); if (el) el.textContent = t; }
+
+function commit() { S.updatedAt = Date.now(); saveLocal(); cloud.queue(); renderAll(); }
+
+/* ---------- the plan math ---------- */
+function compute() {
+  const ex = S.expenses;
+  const needs = sum(ex.filter(e => e.kind === 'need').map(e => e.amt));
+  const wants = sum(ex.filter(e => e.kind === 'want').map(e => e.amt));
+  const spend = needs + wants;
+  const surplus = Math.max(0, S.income - spend);
+  const over = Math.max(0, spend - S.income);
+  const gap = Math.max(0, S.efTarget - S.efBalance);
+  const s1 = gap > 0;
+  const p1ef = Math.min(gap, r100(surplus * S.efShare / 100));
+  const p1sip = Math.max(0, f100(surplus - p1ef));
+  const p2goal = Math.min(surplus, r100(surplus * S.goalShare / 100));
+  const p2sip = Math.max(0, f100(surplus - p2goal));
+  const cur = s1 ? { ef: p1ef, sip: p1sip, goal: 0 } : { ef: 0, sip: p2sip, goal: p2goal };
+  const logged = S.log[THIS] || null;
+  const month = logged || cur;
+  const startOff = logged ? 1 : 0;
+  const months1 = !s1 ? 0 : (p1ef > 0 ? Math.ceil(gap / p1ef) : Infinity);
+  const p2start = !s1 ? 0 : (Number.isFinite(months1) ? startOff + months1 : Infinity);
+  const eta = s1 && Number.isFinite(months1) ? addM(startOff + months1 - 1) : null;
+  const p2date = Number.isFinite(p2start) ? addM(p2start) : null;
+  const rent = ex.find(e => e.id === 'rent' || /rent/i.test(e.name));
+  return { needs, wants, spend, surplus, over, gap, s1, p1ef, p1sip, p2goal, p2sip, cur, month, logged, startOff, months1, p2start, eta, p2date, rent };
+}
+
+function planParams(over) {
+  return Object.assign({
+    start: S.invested, startOff: D.startOff, p1sip: D.p1sip, p2sip: D.p2sip, p2start: D.p2start,
+    stepUp: S.stepUp, months: S.horizon * 12, fee: 0, delay: 0, extra: 0, pauseFrom: -1, pauseLen: 0
+  }, over || {});
+}
+function contribAt(m, P) {
+  if (m < P.startOff || m < P.delay) return 0;
+  if (P.pauseLen && m >= P.pauseFrom && m < P.pauseFrom + P.pauseLen) return 0;
+  const base = m < P.p2start ? P.p1sip : P.p2sip;
+  return (base + P.extra) * Math.pow(1 + P.stepUp / 100, Math.floor(m / 12));
+}
+function projectDet(P, mu) {
+  const g = Math.pow(1 + mu - P.fee, 1 / 12);
+  let v = P.start;
+  for (let m = 0; m < P.months; m++) v = (v + contribAt(m, P)) * g;
+  return v;
+}
+function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+let simCache = { key: '', val: null };
+function simulate() {
+  const P = planParams();
+  const pt = port(S.mix);
+  const key = JSON.stringify([P.start, P.startOff, P.p1sip, P.p2sip, P.p2start, P.stepUp, P.months, S.mix]);
+  if (simCache.key === key) return simCache.val;
+  const N = 600, years = S.horizon, lm = Math.log(1 + pt.mu) / 12, ls = pt.sd / Math.sqrt(12);
+  const rnd = mulberry(20261103);
+  const gauss = () => { let u = 0, v = 0; while (u === 0) u = rnd(); while (v === 0) v = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v); };
+  const contrib = new Float64Array(P.months);
+  for (let m = 0; m < P.months; m++) contrib[m] = contribAt(m, P);
+  const at = Array.from({ length: years + 1 }, () => new Float64Array(N));
+  for (let i = 0; i < N; i++) {
+    let v = P.start; at[0][i] = v;
+    for (let m = 0; m < P.months; m++) {
+      v = (v + contrib[m]) * Math.exp(lm + ls * gauss());
+      if ((m + 1) % 12 === 0) at[(m + 1) / 12][i] = v;
+    }
+  }
+  const q = (arr, p) => { const s = Array.from(arr).sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+  const p10 = [], p50 = [], p90 = [], inv = [];
+  let put = P.start;
+  for (let y = 0; y <= years; y++) {
+    if (y > 0) for (let m = (y - 1) * 12; m < y * 12; m++) put += contrib[m];
+    p10.push(q(at[y], 0.1)); p50.push(q(at[y], 0.5)); p90.push(q(at[y], 0.9)); inv.push(put);
+  }
+  simCache = { key, val: { p10, p50, p90, inv, pt } };
+  return simCache.val;
+}
+
+/* ---------- rendering ---------- */
+function stackHTML(segs) {
+  const total = sum(segs.map(s => s.v)) || 1;
+  return segs.map(s => `<span style="flex-grow:${(s.v / total).toFixed(4)};background:${s.c}" title="${esc(s.label)}"></span>`).join('');
+}
+function legendHTML(segs) { return segs.map(s => `<li><i style="background:${s.c}"></i>${esc(s.label)} <b>${inr(s.v)}</b></li>`).join(''); }
+
+function renderToday() {
+  $('#today-date').textContent = MONTH[BASE.getMonth()] + ' ' + BASE.getFullYear();
+  $('#hero-land').textContent = inr(S.income) + ' lands between the 1st and 3rd';
+  const m = D.month, saveAmt = m.ef + m.sip + m.goal;
+  const left = Math.max(0, S.income - D.spend - saveAmt);
+  $('#hero-save').textContent = inr(saveAmt);
+  const rate = $('#hero-rate');
+  if (D.over > 0) { rate.textContent = inr(D.over) + ' over budget'; rate.className = 'pill warn'; }
+  else { rate.textContent = S.income ? pct(saveAmt / S.income) + ' of stipend' : '—'; rate.className = 'pill'; }
+  $('#hero-cap').textContent = D.logged ? 'saved and invested this month' : 'to save and invest this month';
+  const segs = [
+    { label: 'Needs', v: D.needs, c: 'var(--needs)' }, { label: 'Wants', v: D.wants, c: 'var(--wants)' },
+    { label: 'Safety Fund', v: m.ef, c: 'var(--safety)' }, { label: 'SIP', v: m.sip, c: 'var(--growth)' },
+    { label: 'Goals', v: m.goal, c: 'var(--goals)' }, { label: 'Unassigned', v: left, c: 'var(--fill-2)' }
+  ].filter(s => s.v > 0);
+  $('#hero-stack').innerHTML = stackHTML(segs);
+  $('#hero-legend').innerHTML = legendHTML(segs);
+
+  // focus card
+  const f = $('#focus');
+  const next = CREDIT.find(c => !S.credit[c.id]);
+  let nextLine = '';
+  if (next) {
+    let when = next.when;
+    if (next.id === 'fd' && S.efBalance < 25000 && D.p1ef > 0) when = 'around ' + monLabel(addM(D.startOff + Math.ceil((25000 - S.efBalance) / D.p1ef) - 1));
+    nextLine = `<p class="next">Next credit step: <b>${esc(next.title)}</b> · ${esc(when)}</p>`;
+  }
+  if (D.over > 0) {
+    f.style.cssText = '--st-soft:var(--danger-soft);--st-ink:var(--danger-ink)';
+    f.innerHTML = `<p class="eyebrow">Fix this first</p><h2>Spending is ${inr(D.over)} more than the stipend</h2><p>Trim the Wants in Budget until the numbers fit. Nothing can be saved until they do.</p>`;
+  } else if (D.s1) {
+    f.style.cssText = '--st-soft:var(--safety-soft);--st-ink:var(--safety-ink)';
+    const eta = D.eta ? `by <b>${monLabel(D.eta)}</b> (${D.months1} month${D.months1 === 1 ? '' : 's'})` : 'once there is money left over each month';
+    f.innerHTML = `<p class="eyebrow">Focus now · Stage 1</p><h2>Build the Safety Fund</h2><p>${inr(D.p1ef)} a month gets you to ${short(S.efTarget)} ${eta}. Meanwhile ${inr(D.p1sip)} goes into your SIP, so the investing habit starts now.</p>${nextLine}`;
+  } else {
+    f.style.cssText = '--st-soft:var(--growth-soft);--st-ink:var(--growth-ink)';
+    f.innerHTML = `<p class="eyebrow">Focus now · Stages 2 and 3</p><h2>Safety Fund done. Let it compound.</h2><p>${inr(D.p2sip)} a month into your SIP and ${inr(D.p2goal)} into the goals pot. Touch the Safety Fund only for real emergencies, then refill it first.</p>${nextLine}`;
+  }
+
+  // rings
+  const nextMs = MILESTONES.find(x => x > S.invested) || MILESTONES[MILESTONES.length - 1];
+  const doneC = CREDIT.filter(c => S.credit[c.id]).length;
+  const rings = [
+    { label: 'Safety Fund', v: S.efTarget ? S.efBalance / S.efTarget : 1, c: 'var(--safety)', detail: `${short(S.efBalance)} of ${short(S.efTarget)}` },
+    { label: 'Investments', v: S.invested / nextMs, c: 'var(--growth)', detail: `${short(S.invested)} toward ${short(nextMs)}` },
+    { label: 'Credit', v: doneC / CREDIT.length, c: 'var(--goals)', detail: `${doneC} of ${CREDIT.length} steps` }
+  ];
+  const C = 66, SW = 13, GAP = 3;
+  $('#rings').innerHTML = rings.map((r, i) => {
+    const rad = C - SW / 2 - i * (SW + GAP), circ = 2 * Math.PI * rad, v = clamp(r.v, 0, 1);
+    return `<circle cx="${C}" cy="${C}" r="${rad}" fill="none" style="stroke:${r.c}" stroke-opacity=".2" stroke-width="${SW}"/>` +
+      `<circle class="ring-arc" cx="${C}" cy="${C}" r="${rad}" fill="none" style="stroke:${r.c}" stroke-width="${SW}" stroke-linecap="round" stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${(circ * (1 - v)).toFixed(2)}" transform="rotate(-90 ${C} ${C})"${v === 0 ? ' stroke-opacity="0"' : ''}/>`;
+  }).join('');
+  $('#ring-list').innerHTML = rings.map(r => `<li><i style="background:${r.c}"></i><div><b>${r.label}</b><span>${r.detail}</span></div><em>${pct(clamp(r.v, 0, 1))}</em></li>`).join('');
+
+  // routine
+  const mon = MON[BASE.getMonth()].toUpperCase();
+  const items = [];
+  items.push({ d: '1–3', t: 'Stipend lands', p: `${inr(S.income)} comes in.${D.rent && D.rent.amt ? ` Pay ${inr(D.rent.amt)} rent the same day.` : ''}` });
+  if (m.ef > 0) items.push({ d: '4', t: 'Move money to the Safety Fund', p: `${inr(m.ef)} into a separate savings account, FD or liquid fund.` });
+  if (m.sip > 0) items.push({ d: '5', t: 'SIP auto-debit', p: `${inr(m.sip)} into ${D.s1 ? 'your Nifty 50 index fund' : 'your funds'}. A 5th-of-the-month SIP date means the stipend is always in first.` });
+  if (m.goal > 0) items.push({ d: '5', t: 'Goals pot', p: `${inr(m.goal)} into a recurring deposit or a separate savings pot.` });
+  const flex = Math.max(0, D.spend - (D.rent ? D.rent.amt : 0));
+  items.push({ d: 'Sun', t: 'Weekly check', p: `${inr(flex)} to live on after rent, about ${inr(flex / 4.3)} a week.`, top: 'EVERY' });
+  $('#routine').innerHTML = items.map(it => `<li><span class="cal" aria-hidden="true"><b>${it.top || mon}</b><span>${it.d}</span></span><div><strong>${esc(it.t)}</strong><p>${esc(it.p)}</p></div></li>`).join('');
+
+  const btn = $('#mark-month');
+  const mName = MONTH[BASE.getMonth()];
+  if (D.logged) {
+    btn.textContent = `${mName} done · Undo`; btn.className = 'btn done wide';
+    $('#mark-note').textContent = `Added ${inr(D.logged.ef)} to the Safety Fund, ${inr(D.logged.sip)} to investments${D.logged.goal ? ` and ${inr(D.logged.goal)} to goals` : ''}.`;
+  } else {
+    btn.textContent = `Mark ${mName}'s transfers done`; btn.className = 'btn primary wide';
+    $('#mark-note').textContent = 'Adds this month’s amounts to your balances in Plan, and keeps your streak.';
+  }
+  btn.disabled = !D.logged && (m.ef + m.sip + m.goal) === 0;
+  let k = D.logged ? 0 : 1, streak = 0;
+  while (S.log[ymOf(addM(-k))]) { streak++; k++; }
+  $('#streak').textContent = streak > 1 ? `${streak}-month streak` : '';
+
+  renderWindfall();
+}
+
+function renderWindfall() {
+  const amt = num($('#wf-amt').value);
+  const out = $('#wf-out');
+  if (!amt) { out.innerHTML = ''; return; }
+  const fun = r100(amt * 0.1);
+  let parts;
+  if (D && D.s1) {
+    const ef = Math.min(D.gap, r100(amt * 0.6));
+    const inv = Math.max(0, amt - fun - ef);
+    parts = [
+      { l: 'Safety Fund', c: 'var(--safety)', v: ef, p: ef >= D.gap ? 'Finishes Stage 1' : 'Closes the gap faster' },
+      { l: 'Invest', c: 'var(--growth)', v: inv, p: inv >= 50000 ? 'Park in a liquid fund and move it into your SIP funds over three months' : 'A one-time top-up to your Nifty 50 index fund' },
+      { l: 'Enjoy', c: 'var(--wants)', v: fun, p: 'Guilt-free. Plans that allow no fun get abandoned.' }
+    ];
+  } else {
+    const goal = r100(amt * 0.2);
+    const inv = Math.max(0, amt - fun - goal);
+    parts = [
+      { l: 'Invest', c: 'var(--growth)', v: inv, p: inv >= 50000 ? 'Spread over three months through a liquid fund' : 'A one-time top-up to your funds, same mix as the SIP' },
+      { l: 'Goals pot', c: 'var(--goals)', v: goal, p: 'Brings the nearest goal closer' },
+      { l: 'Enjoy', c: 'var(--wants)', v: fun, p: 'Guilt-free. Plans that allow no fun get abandoned.' }
+    ];
+  }
+  out.innerHTML = parts.filter(x => x.v > 0).map(x => `<div class="piece"><span><i style="background:${x.c}"></i>${x.l}</span><b>${inr(x.v)}</b><p>${esc(x.p)}</p></div>`).join('');
+}
+
+function renderBudget() {
+  $('#b-total').textContent = inr(D.spend);
+  const m = D.cur, left = Math.max(0, S.income - D.spend - m.ef - m.sip - m.goal);
+  const segs = [
+    { label: 'Needs', v: D.needs, c: 'var(--needs)' }, { label: 'Wants', v: D.wants, c: 'var(--wants)' },
+    { label: 'Safety Fund', v: m.ef, c: 'var(--safety)' }, { label: 'SIP', v: m.sip, c: 'var(--growth)' },
+    { label: 'Goals', v: m.goal, c: 'var(--goals)' }, { label: 'Unassigned', v: left, c: 'var(--fill-2)' }
+  ].filter(s => s.v > 0);
+  $('#b-stack').innerHTML = stackHTML(segs);
+  $('#b-legend').innerHTML = legendHTML(segs);
+  const inc = S.income || 1, saveRate = D.surplus / inc;
+  $('#b-kpis').innerHTML = [['Needs', D.needs / inc], ['Wants', D.wants / inc], ['Saved', saveRate]]
+    .map(([l, v]) => `<div class="kpi"><span>${l}</span><b>${pct(v)}</b></div>`).join('');
+  let note;
+  if (D.over > 0) note = `<b>Spending is ${inr(D.over)} above the stipend.</b> Trim the Wants first: eating out and subscriptions are usually the easiest to cut.`;
+  else if (saveRate >= 0.3) note = `<b>Strong.</b> Saving ${pct(saveRate)} on a stipend puts you well ahead of the usual 50/30/20 guide (needs, wants, savings). Keep it there as the stipend rises.`;
+  else if (saveRate >= 0.2) note = `<b>Healthy.</b> You meet the 50/30/20 guide. Trimming wants by ${inr(Math.max(0, r100(inc * 0.3 - D.surplus)))} a month would lift savings to 30%.`;
+  else note = `<b>Tight.</b> Savings are under 20%. Aim to find ${inr(Math.max(0, r100(inc * 0.2 - D.surplus)))} a month in wants before anything else.`;
+  $('#b-note').innerHTML = note;
+}
+
+function renderExpenseRows() {
+  $('#exp-list').innerHTML = S.expenses.map(e => `
+    <div class="exp-row" data-id="${esc(e.id)}">
+      <div><input class="exp-name" value="${esc(e.name)}" aria-label="Category name" maxlength="60"><button type="button" class="kind" data-kind="${e.kind}" aria-label="${esc(e.name)} is a ${e.kind}. Tap to switch.">${e.kind === 'need' ? 'Need' : 'Want'}</button></div>
+      <div class="money-in sm"><span>₹</span><input class="money exp-amt" type="text" inputmode="numeric" autocomplete="off" value="${grp(e.amt)}" aria-label="${esc(e.name)} per month"></div>
+      <button type="button" class="del" aria-label="Remove ${esc(e.name)}">×</button>
+    </div>`).join('');
+}
+
+function renderPlan() {
+  // Stage 1
+  const done1 = !D.s1;
+  $('#s1-state').textContent = done1 ? 'Done' : 'In progress';
+  $('#s1-state').className = 'state' + (done1 ? ' ok' : '');
+  $('#s1-bar').style.width = (S.efTarget ? clamp(S.efBalance / S.efTarget, 0, 1) * 100 : 100) + '%';
+  $('#s1-have').textContent = inr(S.efBalance);
+  $('#s1-of').textContent = 'of ' + inr(S.efTarget);
+  $('#efshare-val').textContent = S.efShare + '%';
+  const cover = D.spend ? S.efTarget / D.spend : 0;
+  $('#s1-facts').innerHTML = [
+    ['Each month', done1 ? '—' : inr(D.p1ef)],
+    ['Ready by', done1 ? 'Done' : (D.eta ? monLabel(D.eta) : 'Not yet')],
+    ['Covers', D.spend ? `${trimNum(Math.round(cover * 10) / 10)} months of spending` : '—']
+  ].map(([l, v]) => `<div class="fact"><span>${l}</span><b>${v}</b></div>`).join('');
+  const T = S.efTarget;
+  const instant = Math.min(T, Math.round((D.spend || 20000) / 1000) * 1000);
+  const fd = Math.min(25000, Math.max(0, T - instant));
+  const liquid = Math.max(0, T - instant - fd);
+  $('#s1-tiers').innerHTML = [
+    { c: 'var(--safety)', t: 'Savings account', p: 'About one month of spending, in an account separate from the one you spend from. Same-day access.', v: instant },
+    { c: 'var(--goals)', t: 'Fixed deposit', p: 'The FD that backs your first credit card in Stage 3. Still yours, still earning interest, breakable in an emergency.', v: fd },
+    { c: 'var(--needs)', t: 'Liquid fund or sweep-in FD', p: 'Money back in about one working day, and it usually earns more than a savings account.', v: liquid }
+  ].filter(x => x.v > 0).map(x => `<li><i style="background:${x.c}"></i><div><b>${x.t}</b><p>${x.p}</p></div><div class="amt"><span class="num">${inr(x.v)}</span></div></li>`).join('');
+
+  // Stage 2
+  const sim = simulate();
+  $('#s2-state').textContent = D.s1 ? 'Started small' : 'Full speed';
+  $('#s2-state').className = 'state' + (D.s1 ? '' : ' ok');
+  const laterLabel = D.s1 ? (D.p2date ? 'From ' + monLabel(D.p2date) : 'After Stage 1') : 'Plus 10%/yr';
+  $('#s2-facts').innerHTML = [
+    ['SIP now', inr(D.cur.sip)],
+    [D.s1 ? laterLabel : 'Step-up', D.s1 ? inr(D.p2sip) : S.stepUp + '% a year'],
+    [`Likely in ${S.horizon} yrs`, short(sim.p50[sim.p50.length - 1])]
+  ].map(([l, v]) => `<div class="fact"><span>${l}</span><b>${v}</b></div>`).join('');
+  $('#mix-note').textContent = (MIXES[S.mix] || MIXES.balanced).note;
+  const nowEl = $('#s2-now');
+  if (D.s1 && D.p1sip > 0) { nowEl.hidden = false; nowEl.textContent = `For now, put the whole ${inr(D.p1sip)} into the Nifty 50 index fund. One fund keeps it simple while Stage 1 fills; the full mix below starts ${D.p2date ? 'in ' + monLabel(D.p2date) : 'after Stage 1'}.`; }
+  else nowEl.hidden = true;
+  const w = (MIXES[S.mix] || MIXES.balanced).w;
+  const keys = Object.keys(w);
+  const full = D.p2sip;
+  let assigned = 0;
+  const amts = keys.map(k => { const a = r100(full * w[k] / 100); assigned += a; return a; });
+  if (amts.length) amts[0] += full - assigned;
+  $('#alloc').innerHTML = keys.map((k, i) => `<div class="alloc-row"><i style="background:${ASSETS[k].color}"></i><div><b>${ASSETS[k].name}</b><p>${ASSETS[k].why}</p></div><div class="amt"><span class="num">${inr(Math.max(0, amts[i]))}</span><small>${w[k]}% a month</small></div></div>`).join('');
+
+  // Stage 3
+  const doneC = CREDIT.filter(c => S.credit[c.id]).length;
+  $('#s3-state').textContent = `${doneC} of ${CREDIT.length} credit steps`;
+  $('#s3-state').className = 'state' + (doneC === CREDIT.length ? ' ok' : '');
+  $('#goalshare-val').textContent = S.goalShare + '%';
+  renderGoals();
+}
+
+function renderCredit() {
+  const tick = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.4 5.8 10 11 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  $('#credit').innerHTML = CREDIT.map(c => {
+    const on = !!S.credit[c.id];
+    return `<li class="check${on ? ' done' : ''}" data-id="${c.id}"><button type="button" class="tick" aria-pressed="${on}" aria-label="${on ? 'Done' : 'Mark done'}: ${esc(c.title)}">${tick}</button><div><span class="when">${esc(c.when)}</span><b>${esc(c.title)}</b><p>${esc(c.body)}</p></div></li>`;
+  }).join('');
+}
+
+function monthOptions(sel) {
+  let o = '', found = false;
+  for (let i = 1; i <= 120; i++) { const v = ymOf(addM(i)); if (v === sel) found = true; o += `<option value="${v}"${v === sel ? ' selected' : ''}>${monLabel(addM(i))}</option>`; }
+  if (!found && sel) o = `<option value="${esc(sel)}" selected>${esc(ymLabel(sel))}</option>` + o;
+  return o;
+}
+function renderGoalRows() {
+  $('#goal-list').innerHTML = S.goals.map(g => `
+    <div class="goal-row" data-id="${esc(g.id)}">
+      <input class="goal-name" value="${esc(g.name)}" aria-label="Goal name" maxlength="60">
+      <div class="goal-line">
+        <div class="money-in sm"><span>₹</span><input class="money goal-amt" type="text" inputmode="numeric" autocomplete="off" value="${grp(g.amt)}" aria-label="${esc(g.name)} amount"></div>
+        <label class="sr" for="by-${esc(g.id)}">Target month</label><select class="goal-by" id="by-${esc(g.id)}">${monthOptions(g.by)}</select>
+        <button type="button" class="del" aria-label="Remove ${esc(g.name)}">×</button>
+      </div>
+      <p class="goal-need" data-need="${esc(g.id)}"></p>
+    </div>`).join('');
+  renderGoals();
+}
+function renderGoals() {
+  const start = D.s1 ? D.p2start : 0;
+  let bal = S.goalsBalance, totalNeed = 0, late = 0;
+  [...S.goals].sort((a, b) => (a.by < b.by ? -1 : 1)).forEach(g => {
+    const have = Math.min(bal, g.amt); bal -= have;
+    const left = g.amt - have, mLeft = monthsUntil(g.by);
+    const el = $(`[data-need="${CSS.escape(g.id)}"]`);
+    if (!el) return;
+    el.className = 'goal-need';
+    if (left <= 0) { el.innerHTML = `<b>Covered</b> by the goals pot.`; return; }
+    if (!Number.isFinite(start) || mLeft < start) {
+      late++; el.className = 'goal-need late';
+      el.innerHTML = `<b>Due before the goals pot starts</b>${Number.isFinite(start) ? ` (${monLabel(addM(start))})` : ''}. Move the date later or fund it separately.`;
+      return;
+    }
+    const months = Math.max(1, mLeft - start + 1);
+    const need = Math.ceil(left / months / 100) * 100;
+    totalNeed += need;
+    el.innerHTML = `<b>${inr(need)} a month</b> for ${months} month${months === 1 ? '' : 's'}${have ? ` (${inr(have)} already set aside)` : ''}.`;
+  });
+  const pot = D.p2goal;
+  const when = D.s1 ? (D.p2date ? ` from ${monLabel(D.p2date)}` : ' after Stage 1') : '';
+  let msg = `Goals pot: <b>${inr(pot)} a month</b>${when}. `;
+  if (!S.goals.length) msg += 'Add something you are saving for in the next one to three years.';
+  else if (totalNeed <= pot && !late) msg += `Your goals need ${inr(totalNeed)} a month, so they are covered.`;
+  else if (totalNeed > pot) msg += `Your goals need ${inr(totalNeed)} a month. Push a date out or raise the share above.`;
+  else msg += 'One goal falls before the pot starts.';
+  $('#goal-note').innerHTML = msg;
+}
+
+/* ---------- Grow ---------- */
+function niceStep(x) { const p = Math.pow(10, Math.floor(Math.log10(x))); const f = x / p; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10) * p; }
+function drawFan(sim) {
+  const el = $('#fan');
+  const W = Math.max(280, Math.round(el.clientWidth || 600));
+  const H = W < 520 ? 230 : 290;
+  const pad = { l: 50, r: 16, t: 14, b: 28 };
+  const n = sim.p50.length, yrs = n - 1;
+  const max = Math.max(...sim.p90, ...sim.inv, 1);
+  const step = niceStep(max / 4);
+  const top = Math.ceil(max / step) * step;
+  const x = i => pad.l + (i / Math.max(1, yrs)) * (W - pad.l - pad.r);
+  const y = v => pad.t + (1 - v / top) * (H - pad.t - pad.b);
+  const line = arr => arr.map((v, i) => (i ? 'L' : 'M') + x(i).toFixed(1) + ',' + y(v).toFixed(1)).join('');
+  let g = '';
+  for (let v = 0; v <= top + 1; v += step) g += `<line class="grid-l" x1="${pad.l}" x2="${W - pad.r}" y1="${y(v).toFixed(1)}" y2="${y(v).toFixed(1)}"/><text class="ax" x="${pad.l - 8}" y="${(y(v) + 4).toFixed(1)}" text-anchor="end">${v === 0 ? '0' : short(v)}</text>`;
+  const every = yrs <= 5 ? 1 : yrs <= 10 ? 2 : 5;
+  for (let i = 0; i <= yrs; i += every) g += `<text class="ax" x="${x(i).toFixed(1)}" y="${H - 8}" text-anchor="${i === 0 ? 'start' : i === yrs ? 'end' : 'middle'}">${BASE.getFullYear() + i}</text>`;
+  const band = line(sim.p90) + sim.p10.slice().reverse().map((v, j) => 'L' + x(yrs - j).toFixed(1) + ',' + y(v).toFixed(1)).join('') + 'Z';
+  const ex = x(yrs), ey = y(sim.p50[yrs]);
+  el.innerHTML = `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${g}<path class="band" d="${band}"/><path class="inv" d="${line(sim.inv)}"/><path class="mid" d="${line(sim.p50)}"/><circle class="dot" cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="5"/><text class="endlabel" x="${(ex - 8).toFixed(1)}" y="${(ey - 10).toFixed(1)}" text-anchor="end">${short(sim.p50[yrs])}</text></svg>`;
+}
+function renderGrow() {
+  const sim = simulate(), H = S.horizon;
+  const last = sim.p50.length - 1;
+  $('#g-tiles').innerHTML = [
+    ['Likely', sim.p50[last], 'main'], ['Bad luck (1 in 10)', sim.p10[last], ''], ['Good luck (1 in 10)', sim.p90[last], ''], ['You put in', sim.inv[last], '']
+  ].map(([l, v, c]) => `<div class="tile ${c}"><span>${l}</span><b>${short(v)}</b></div>`).join('');
+  drawFan(sim);
+  const real = sim.p50[last] / Math.pow(1.06, H);
+  $('#g-note').textContent = `In today's money, the likely figure is worth about ${short(real)} after 6% yearly inflation. This mix assumes about ${pct(sim.pt.mu)} a year over the long run, with typical yearly swings of ±${pct(sim.pt.sd)}.`;
+
+  const mu = sim.pt.mu, base = projectDet(planParams(), mu);
+  const L = [];
+  if (S.stepUp > 0) {
+    const flat = projectDet(planParams({ stepUp: 0 }), mu);
+    L.push({ t: `Raise the SIP ${S.stepUp}% every year`, p: 'Do it each April, or whenever the stipend rises (JRF to SRF, then a salary). Most SIP apps have a step-up option.', d: base - flat });
+  } else {
+    const up = projectDet(planParams({ stepUp: 10 }), mu);
+    L.push({ t: 'Raise the SIP 10% every year', p: 'Turn on step-up above to include it. Most SIP apps can do this automatically.', d: up - base });
+  }
+  L.push({ t: 'Waiting two years to start', p: 'The first years of contributions compound the longest, so delay is expensive.', d: -(base - projectDet(planParams({ delay: 24 }), mu)) });
+  L.push({ t: 'Paying 1% a year more in fees', p: 'Regular plans and pricey active funds cost about this much more. Choose direct plans and index funds.', d: -(base - projectDet(planParams({ fee: 0.01 }), mu)) });
+  L.push({ t: 'Add ₹1,000 a month', p: 'One fewer takeaway a week, roughly.', d: projectDet(planParams({ extra: 1000 }), mu) - base });
+  if (H >= 5) L.push({ t: 'Pausing the SIP for a year in a crash', p: 'At least this much, and more in practice because you miss the cheap units. The Safety Fund is what lets you keep going.', d: -(base - projectDet(planParams({ pauseFrom: 36, pauseLen: 12 }), mu)) });
+  $('#levers').innerHTML = L.map(l => `<li><div><b>${esc(l.t)}</b><p>${esc(l.p)}</p></div><span class="delta ${l.d >= 0 ? 'up' : 'down'}">${l.d >= 0 ? '+' : '−'}${short(Math.abs(l.d)).replace('−', '')}</span></li>`).join('');
+
+  const pt = sim.pt, crash = pt.eq * -0.45 + pt.gold * 0.2 + pt.debt * 0.05;
+  const y5 = Math.min(5, last), v5 = sim.p50[y5];
+  $('#stress').textContent = `In 2008 the Nifty 50 fell about 52%, and in March 2020 it dropped about 38% in a month. A crash like 2008 would knock roughly ${pct(-crash)} off this mix on paper. If it hit in year ${y5}, a likely ${short(v5)} would show as about ${short(v5 * (1 + crash))} for a while. Past recoveries took from under a year (2020) to about two years (2008–10). Keep the SIP running and don't sell; the Safety Fund exists so you never have to.`;
+  const w = (MIXES[S.mix] || MIXES.balanced).w;
+  $('#assump').innerHTML = Object.keys(w).map(k => `<tr><td>${ASSETS[k].name}</td><td class="r">${w[k]}%</td><td class="r">${pct(ASSETS[k].cagr)}</td><td class="r">±${pct(ASSETS[k].vol)}</td></tr>`).join('') +
+    `<tr><td><b>Whole mix</b></td><td class="r">100%</td><td class="r"><b>${(pt.mu * 100).toFixed(1)}%</b></td><td class="r"><b>±${pct(pt.sd)}</b></td></tr>`;
+}
+
+/* ---------- inputs and segmented controls ---------- */
+function setRange(el) { const p = (el.value - el.min) / (el.max - el.min) * 100; el.style.setProperty('--p', p + '%'); }
+function syncSegs() {
+  $$('[data-group]').forEach(g => { const k = g.dataset.group; $$('button', g).forEach(b => b.setAttribute('aria-pressed', String(String(S[k]) === b.dataset.val))); });
+}
+function hydrate() {
+  D = compute();
+  $$('[data-k]').forEach(el => {
+    if (el === document.activeElement) return;
+    const v = S[el.dataset.k];
+    if (el.type === 'range') { el.value = v; setRange(el); } else el.value = grp(v);
+  });
+  syncSegs(); renderExpenseRows(); renderGoalRows(); renderCredit();
+}
+
+let current = 'today';
+function renderAll() {
+  D = compute();
+  renderToday(); renderBudget(); renderPlan();
+  if (current === 'grow') renderGrow();
+}
+
+const VIEWS = ['today', 'budget', 'plan', 'grow', 'ask'];
+function show(name, push) {
+  if (!VIEWS.includes(name)) name = 'today';
+  current = name;
+  $$('[data-view]').forEach(v => { v.hidden = v.dataset.view !== name; });
+  $$('[data-tab]').forEach(b => { if (b.getAttribute('role') === 'tab') b.setAttribute('aria-selected', String(b.dataset.tab === name)); });
+  if (push && location.hash.slice(1) !== name) { try { history.replaceState(null, '', '#' + name); } catch (e) { location.hash = name; } }
+  if (name === 'grow') renderGrow();
+  if (name === 'ask') initAsk();
+  window.scrollTo(0, 0);
+}
+
+document.addEventListener('click', e => {
+  const tab = e.target.closest('[data-tab]');
+  if (tab) { e.preventDefault(); show(tab.dataset.tab, true); return; }
+  const seg = e.target.closest('[data-group] button');
+  if (seg) {
+    const k = seg.parentElement.dataset.group, val = seg.dataset.val;
+    S[k] = Number.isNaN(+val) ? val : +val;
+    syncSegs(); commit(); return;
+  }
+  const row = e.target.closest('.exp-row');
+  if (row) {
+    const ex = S.expenses.find(x => x.id === row.dataset.id);
+    if (e.target.closest('.kind') && ex) {
+      ex.kind = ex.kind === 'need' ? 'want' : 'need';
+      const b = e.target.closest('.kind'); b.dataset.kind = ex.kind; b.textContent = ex.kind === 'need' ? 'Need' : 'Want';
+      commit(); return;
+    }
+    if (e.target.closest('.del')) { S.expenses = S.expenses.filter(x => x.id !== row.dataset.id); renderExpenseRows(); commit(); return; }
+  }
+  const grow = e.target.closest('.goal-row');
+  if (grow && e.target.closest('.del')) { S.goals = S.goals.filter(x => x.id !== grow.dataset.id); renderGoalRows(); commit(); return; }
+  const chk = e.target.closest('.check .tick');
+  if (chk) { const id = chk.closest('.check').dataset.id; if (S.credit[id]) delete S.credit[id]; else S.credit[id] = true; renderCredit(); commit(); return; }
+});
+
+document.addEventListener('input', e => {
+  const t = e.target;
+  if (t.id === 'wf-amt') { renderWindfall(); return; }
+  if (t.dataset && t.dataset.k) {
+    if (t.type === 'range') { S[t.dataset.k] = +t.value; setRange(t); } else S[t.dataset.k] = num(t.value);
+    commit(); return;
+  }
+  const row = t.closest('.exp-row');
+  if (row) {
+    const ex = S.expenses.find(x => x.id === row.dataset.id); if (!ex) return;
+    if (t.classList.contains('exp-name')) ex.name = t.value.slice(0, 60);
+    if (t.classList.contains('exp-amt')) ex.amt = num(t.value);
+    commit(); return;
+  }
+  const gr = t.closest('.goal-row');
+  if (gr) {
+    const g = S.goals.find(x => x.id === gr.dataset.id); if (!g) return;
+    if (t.classList.contains('goal-name')) g.name = t.value.slice(0, 60);
+    if (t.classList.contains('goal-amt')) g.amt = num(t.value);
+    commit();
+  }
+});
+document.addEventListener('change', e => {
+  const t = e.target;
+  if (t.classList.contains('goal-by')) { const g = S.goals.find(x => x.id === t.closest('.goal-row').dataset.id); if (g) { g.by = t.value; commit(); } }
+});
+document.addEventListener('focusin', e => { if (e.target.matches('input.money')) { const n = num(e.target.value); e.target.value = n ? String(n) : ''; } });
+document.addEventListener('focusout', e => { if (e.target.matches('input.money')) e.target.value = grp(num(e.target.value)); });
+
+$('#add-exp').addEventListener('click', () => {
+  const id = uid(); S.expenses.push({ id, name: 'New category', amt: 0, kind: 'want' });
+  renderExpenseRows(); commit();
+  const inp = $(`.exp-row[data-id="${id}"] .exp-name`); if (inp) { inp.focus(); inp.select(); }
+});
+$('#add-goal').addEventListener('click', () => {
+  const id = uid(); S.goals.push({ id, name: 'New goal', amt: 20000, by: ymOf(addM(30)) });
+  renderGoalRows(); commit();
+  const inp = $(`.goal-row[data-id="${id}"] .goal-name`); if (inp) { inp.focus(); inp.select(); }
+});
+$('#mark-month').addEventListener('click', () => {
+  if (S.log[THIS]) {
+    const L = S.log[THIS];
+    S.efBalance = Math.max(0, S.efBalance - L.ef); S.invested = Math.max(0, S.invested - L.sip); S.goalsBalance = Math.max(0, S.goalsBalance - L.goal);
+    delete S.log[THIS];
+  } else {
+    const m = D.cur;
+    S.efBalance += m.ef; S.invested += m.sip; S.goalsBalance += m.goal;
+    S.log[THIS] = { ef: m.ef, sip: m.sip, goal: m.goal };
+  }
+  commit(); hydrate();
+});
+let resetArmed = 0;
+$('#reset').addEventListener('click', e => {
+  const b = e.currentTarget;
+  if (!resetArmed) { b.textContent = 'Tap again to erase your numbers'; resetArmed = setTimeout(() => { resetArmed = 0; b.textContent = 'Reset to starter numbers'; }, 4000); return; }
+  clearTimeout(resetArmed); resetArmed = 0; b.textContent = 'Reset to starter numbers';
+  S = fresh(); commit(); hydrate();
+});
+let rz = 0;
+window.addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(() => { if (current === 'grow') drawFan(simulate()); }, 120); });
+window.addEventListener('hashchange', () => show(location.hash.slice(1), false));
+
+/* ---------- Ask (Claude) ---------- */
+const CHAT_LS = 'afm.chat.v1';
+const chat = { turns: [], busy: false, ctl: null, backend: null, ready: false, started: false };
+try { const t = JSON.parse(localStorage.getItem(CHAT_LS) || '[]'); if (Array.isArray(t)) chat.turns = t.filter(x => x && (x.role === 'user' || x.role === 'assistant') && typeof x.content === 'string').slice(-30); } catch (e) { /* none */ }
+const saveChat = () => { try { localStorage.setItem(CHAT_LS, JSON.stringify(chat.turns.slice(-30))); } catch (e) { /* none */ } };
+
+const SUGGEST = [
+  'Which Nifty 50 index funds have the lowest costs, and how do I choose one?',
+  'Gold ETF or gold fund: which suits me without a demat account?',
+  'My rent is going up to ₹12,000. How should I rebalance?',
+  'How exactly does an FD-backed credit card build my CIBIL score?',
+  'Should part of my Safety Fund go into PPF?'
+];
+const RULES = [
+  'You are the built-in guide inside "Ananya\'s Financial Management", a planning app for an Indian PhD scholar who lives on a monthly research fellowship.',
+  'The plan has three stages: (1) a Safety Fund (emergency fund) built first; (2) long-term compounding through monthly SIPs into low-cost funds; (3) goals and credit-building (an FD-backed secured credit card, CIBIL score, eventually home-loan readiness), running alongside Stage 2.',
+  'How to answer:',
+  '- Be warm, direct and practical. Keep answers under about 180 words unless asked for more. Use short paragraphs or bullet lists.',
+  '- Use ₹ with Indian digit grouping (₹1,50,000) and lakh/crore. Show the arithmetic when you suggest numbers, based on the plan snapshot below.',
+  '- For funds, explain the category and how to choose (direct plan, expense ratio, tracking error, fund size, fund house). You may name well-known funds as examples, but say that expense ratios, returns and NAVs change and should be checked on AMFI, Value Research or the fund house site before investing.',
+  '- Never promise returns. Be plain about risk, especially for small-caps, sector funds, crypto, F&O trading, and "guaranteed return" schemes.',
+  '- Point to a professional for tax filing edge cases, insurance claims and legal questions. You are an educational guide, not a SEBI-registered investment adviser; say so briefly only when recommending specific products.'
+].join('\n');
+
+function planContext() {
+  if (!D) D = compute();
+  const sim = simulate();
+  const w = (MIXES[S.mix] || MIXES.balanced).w;
+  const last = sim.p50.length - 1;
+  return [
+    `Plan snapshot (${MONTH[BASE.getMonth()]} ${BASE.getFullYear()}):`,
+    `- Stipend ${inr(S.income)}/month, credited 1st–3rd.`,
+    `- Spending ${inr(D.spend)}/month (needs ${inr(D.needs)}, wants ${inr(D.wants)}): ` + S.expenses.map(e => `${e.name} ${inr(e.amt)} (${e.kind})`).join('; ') + '.',
+    `- Left to save: ${inr(D.surplus)}/month (${pct(D.surplus / (S.income || 1))})${D.over ? `; OVERSPENDING by ${inr(D.over)}` : ''}.`,
+    `- Stage 1 Safety Fund: ${inr(S.efBalance)} saved of ${inr(S.efTarget)}; ${D.s1 ? `${inr(D.p1ef)}/month (${S.efShare}% of savings), done around ${D.eta ? monLabel(D.eta) : 'unknown'}` : 'complete'}.`,
+    `- Stage 2 SIP: ${inr(D.cur.sip)}/month now${D.s1 ? ' (all in a Nifty 50 index fund)' : ''}; ${inr(D.p2sip)}/month after Stage 1; step-up ${S.stepUp}%/year. Mix "${MIXES[S.mix].label}": ` + Object.keys(w).map(k => `${ASSETS[k].name} ${w[k]}%`).join(', ') + `. Current investments ${inr(S.invested)}.`,
+    `- Projection over ${S.horizon} years (simulated): likely ${short(sim.p50[last])}, bad-luck case ${short(sim.p10[last])}, good-luck case ${short(sim.p90[last])}, total put in ${short(sim.inv[last])}.`,
+    `- Stage 3: goals pot ${inr(D.p2goal)}/month (${S.goalShare}% of savings after Stage 1), balance ${inr(S.goalsBalance)}. Goals: ` + (S.goals.length ? S.goals.map(g => `${g.name} ${inr(g.amt)} by ${ymLabel(g.by)}`).join('; ') : 'none') + '.',
+    `- Credit roadmap done: ` + (CREDIT.filter(c => S.credit[c.id]).map(c => c.title).join('; ') || 'nothing yet') + '.'
+  ].join('\n');
+}
+
+const inline = s => esc(s)
+  .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+  .replace(/`([^`]+)`/g, '<code>$1</code>')
+  .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+function mdTable(rows) {
+  const cells = r => r.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map(c => c.trim());
+  const body = rows.filter(r => !/^\s*\|[\s:|-]+\|\s*$/.test(r));
+  if (!body.length) return '';
+  const [h, ...rest] = body;
+  return '<div class="table-wrap"><table><thead><tr>' + cells(h).map(c => '<th>' + inline(c) + '</th>').join('') + '</tr></thead><tbody>' +
+    rest.map(r => '<tr>' + cells(r).map(c => '<td>' + inline(c) + '</td>').join('') + '</tr>').join('') + '</tbody></table></div>';
+}
+function md(src) {
+  const lines = String(src).replace(/\r/g, '').split('\n');
+  let html = '', i = 0;
+  const isBlock = l => /^\s*(#{1,6}\s|[-*•]\s|\d+[.)]\s|\|)/.test(l);
+  while (i < lines.length) {
+    const l = lines[i];
+    if (!l.trim() || /^\s*(-{3,}|\*{3,})\s*$/.test(l)) { i++; continue; }
+    let m;
+    if ((m = l.match(/^\s*#{1,6}\s+(.*)$/))) { html += '<h4>' + inline(m[1]) + '</h4>'; i++; continue; }
+    if (/^\s*\|.*\|\s*$/.test(l)) { const rows = []; while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(lines[i++]); html += mdTable(rows); continue; }
+    if (/^\s*[-*•]\s+/.test(l)) { html += '<ul>'; while (i < lines.length && /^\s*[-*•]\s+/.test(lines[i])) html += '<li>' + inline(lines[i++].replace(/^\s*[-*•]\s+/, '')) + '</li>'; html += '</ul>'; continue; }
+    if (/^\s*\d+[.)]\s+/.test(l)) { html += '<ol>'; while (i < lines.length && /^\s*\d+[.)]\s+/.test(lines[i])) html += '<li>' + inline(lines[i++].replace(/^\s*\d+[.)]\s+/, '')) + '</li>'; html += '</ol>'; continue; }
+    const para = [];
+    while (i < lines.length && lines[i].trim() && !isBlock(lines[i])) para.push(inline(lines[i++]));
+    if (para.length) html += '<p>' + para.join('<br>') + '</p>'; else html += '<p>' + inline(lines[i++]) + '</p>';
+  }
+  return html;
+}
+
+function bubble(role, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + (role === 'user' ? 'user' : 'ai');
+  if (role === 'user') el.textContent = text; else el.innerHTML = md(text);
+  $('#chat-log').appendChild(el);
+  scrollChat();
+  return el;
+}
+function scrollChat() { const log = $('#chat-log'); log.scrollTop = log.scrollHeight; }
+function renderChat() {
+  const log = $('#chat-log');
+  log.innerHTML = '';
+  bubble('assistant', 'Hi! I can see the numbers in this plan. Ask me about funds, the budget, the Safety Fund, or building a credit score from zero.');
+  chat.turns.forEach(t => bubble(t.role, t.content));
+  $('#chat-clear').hidden = !chat.turns.length;
+}
+function setBusy(b) {
+  chat.busy = b;
+  $('#chat-stop').hidden = !b; $('#chat-send').hidden = b;
+  $$('.chip').forEach(c => { c.disabled = b || !chat.backend; });
+  updateSend();
+}
+function updateSend() { $('#chat-send').disabled = chat.busy || !chat.backend || !$('#chat-in').value.trim(); }
+
+async function detectBackend() {
+  if (window.claude && typeof window.claude.use === 'function') {
+    try { const s = await window.claude.use('sample'); if (typeof s === 'function') return { kind: 'claude', fn: s }; } catch (e) { /* not available */ }
+  }
+  if (location.protocol === 'http:' || location.protocol === 'https:') {
+    try {
+      const r = await fetch('api/advisor', { method: 'GET', headers: { accept: 'application/json' } });
+      if (r.ok) { const j = await r.json(); if (j && j.ok) return { kind: 'server', passcode: !!j.passcode }; }
+    } catch (e) { /* no server */ }
+  }
+  return null;
+}
+async function initAsk() {
+  if (chat.started) return;
+  chat.started = true;
+  renderChat();
+  $('#chips').innerHTML = SUGGEST.map(s => `<button type="button" class="chip" disabled>${esc(s)}</button>`).join('');
+  chat.backend = await detectBackend();
+  const st = $('#chat-status');
+  if (!chat.backend) {
+    st.textContent = 'The advisor works when this page is opened inside Claude, or on the hosted version with an API key set. Everything else on the page works without it.';
+  } else if (chat.backend.kind === 'claude') {
+    st.textContent = 'Answers come from Claude on your own Claude account. Your plan numbers go along with each question.';
+  } else {
+    st.textContent = 'Answers come from Claude through this site. Your plan numbers go along with each question.';
+    if (chat.backend.passcode) { $('#pass-row').hidden = false; try { $('#chat-pass').value = sessionStorage.getItem('afm.pass') || ''; } catch (e) { /* none */ } }
+  }
+  setBusy(false);
+}
+
+function friendly(code) {
+  switch (code) {
+    case 'not_granted': case 'sampling_disabled': case 'not_declared': case 'capability_disabled': case 'capability_removed':
+      return 'Claude is not available to this page for your account. Everything else still works.';
+    case 'rate_limited': return 'Claude is busy for your account right now. Try again in a minute.';
+    case 'session_expired': return 'Sign in to Claude again, then retry.';
+    case 'refused': return 'Claude could not help with that one. Try asking it a different way.';
+    case 'passcode': return 'That passcode was not accepted.';
+    default: return 'Could not reach Claude. Try again.';
+  }
+}
+
+async function ask(text) {
+  text = String(text || '').trim();
+  if (!text || chat.busy || !chat.backend) return;
+  chat.turns.push({ role: 'user', content: text });
+  saveChat();
+  bubble('user', text);
+  $('#chat-in').value = ''; autosize();
+  const out = bubble('assistant', '');
+  out.classList.add('thinking'); out.textContent = 'Thinking';
+  $('#chat-clear').hidden = false;
+  setBusy(true);
+  const ctl = new AbortController(); chat.ctl = ctl;
+  let shown = '';
+  const paint = t => { shown = t; out.classList.remove('thinking'); out.innerHTML = md(t); scrollChat(); };
+  let turns = chat.turns.slice(-16);
+  while (turns.length && turns[0].role !== 'user') turns = turns.slice(1);
+  try {
+    if (chat.backend.kind === 'claude') {
+      const input = [{ role: 'user', content: RULES + '\n\n' + planContext() }].concat(turns);
+      const res = await chat.backend.fn(input, { cache: false, signal: ctl.signal, onText: ({ text: t }) => paint(t) });
+      paint(res.text);
+      if (res.truncated) out.insertAdjacentHTML('beforeend', '<span class="err">Cut short. Ask for less at a time.</span>');
+    } else {
+      let pass = '';
+      try { pass = $('#chat-pass').value || ''; sessionStorage.setItem('afm.pass', pass); } catch (e) { /* none */ }
+      const r = await fetch('api/advisor', {
+        method: 'POST', signal: ctl.signal,
+        headers: { 'content-type': 'application/json', 'x-advisor-passcode': pass },
+        body: JSON.stringify({ messages: turns, context: planContext() })
+      });
+      if (r.status === 401) { $('#pass-row').hidden = false; throw { code: 'passcode' }; }
+      if (!r.ok || !r.body) throw { code: r.status === 429 ? 'rate_limited' : 'upstream_error' };
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      let acc = '';
+      for (;;) { const { done, value } = await reader.read(); if (done) break; acc += dec.decode(value, { stream: true }); if (acc.trim()) paint(acc); }
+      if (!acc.trim()) throw { code: 'empty' };
+    }
+    chat.turns.push({ role: 'assistant', content: shown });
+  } catch (e) {
+    const code = e && (e.code || (e.name === 'AbortError' ? 'cancelled' : ''));
+    const partial = (e && typeof e.text === 'string' && e.text) || (code !== 'refused' ? shown : '');
+    if (partial) { paint(partial); chat.turns.push({ role: 'assistant', content: partial }); }
+    else { out.classList.remove('thinking'); out.innerHTML = ''; }
+    if (code !== 'cancelled') out.insertAdjacentHTML('beforeend', `<span class="err">${esc(friendly(code))}</span>`);
+    else if (!partial) out.remove();
+  } finally {
+    saveChat(); chat.ctl = null; setBusy(false);
+  }
+}
+function autosize() { const t = $('#chat-in'); t.style.height = 'auto'; t.style.height = Math.min(140, t.scrollHeight) + 'px'; }
+$('#composer').addEventListener('submit', e => { e.preventDefault(); ask($('#chat-in').value); });
+$('#chat-in').addEventListener('input', () => { autosize(); updateSend(); });
+$('#chat-in').addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); ask($('#chat-in').value); } });
+$('#chat-stop').addEventListener('click', () => { if (chat.ctl) chat.ctl.abort(); });
+$('#chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) ask(c.textContent); });
+$('#chat-clear').addEventListener('click', () => { if (chat.busy) return; chat.turns = []; saveChat(); renderChat(); });
+
+/* ---------- boot ---------- */
+D = compute();
+hydrate();
+renderAll();
+show(location.hash.slice(1) || 'today', false);
+cloud.init();
+})();
+</script>
