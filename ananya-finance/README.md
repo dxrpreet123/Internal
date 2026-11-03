@@ -6,15 +6,15 @@ A mobile-first money plan for a PhD scholar on a ₹37,500 monthly fellowship, b
 2. **Compounding**: monthly SIPs into a few low-cost funds (index funds, gold, PPF/debt), starting small during Stage 1 and taking the full amount after it.
 3. **Goals and credit**: an FD-backed credit card to build a CIBIL score from zero, plus a goals pot for things one to three years away.
 
-The app has five tabs:
+It's a minimal website in pink ("Rosé"). The front page fits one phone screen: this month's amount to save, a "Mark this month done" button, the current stage, and four buttons. Each section page opens from there and has a single Back button. There are no tab bars or fixed navigation. The design rules are in `CLAUDE.md`.
 
-| Tab | What it does |
+| Page | What it does |
 | --- | --- |
-| Today | This month's split, the three progress rings, the payday routine (1st–5th), a "mark this month done" button that updates balances, and a splitter for unexpected money |
-| Budget | Editable stipend and spending categories (need/want), with the needs/wants/savings breakdown |
-| Plan | All three stages: target, timeline and where to keep the Safety Fund; the SIP mix and per-fund amounts; the credit roadmap checklist and goals |
-| Grow | A projection of 600 simulated market paths (likely, bad-luck and good-luck outcomes), the levers that matter most, and crash stress tests |
-| Ask | A Claude advisor that sees the plan's numbers |
+| Front | The amount to save this month, the monthly "done" button that updates balances, and progress on the current stage |
+| Budget | Editable stipend and spending categories (need/want), where the money goes, and a splitter for unexpected money |
+| Plan | The three stages, each opening in place: Safety Fund target, timeline and where to keep it; SIP mix and per-fund amounts; credit roadmap and goals. Also the payday routine (1st–5th) |
+| Growth | A projection of 600 simulated market paths (likely, bad-luck and good-luck outcomes), the levers that matter most, and a crash stress test |
+| Ask Claude | A Claude advisor that sees the plan's numbers |
 
 Data stays in the browser (`localStorage`). When the page runs as a Claude artifact, it also syncs to the viewer's Claude account.
 
