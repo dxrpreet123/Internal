@@ -1071,7 +1071,7 @@ async function initAsk() {
   renderChat();
   chat.backend = await detectBackend();
   const st = $('#chat-status');
-  if (!chat.backend) st.textContent = 'Claude answers here when this page is opened inside Claude, or on the hosted site once an API key is set. Everything else works without it.';
+  if (!chat.backend) st.textContent = 'Claude can’t answer on this copy of the site. It works when the page is opened inside Claude, or on a Vercel deploy with an API key. Everything else works here.';
   else if (chat.backend.kind === 'claude') st.textContent = 'Answers come from Claude on your own Claude account. The plan numbers go along with each question.';
   else {
     st.textContent = 'Answers come from Claude through this site. The plan numbers go along with each question.';
